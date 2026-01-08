@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword } from 'lucide-react';
+import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, Copy } from 'lucide-react';
 import Card from './components/Card';
 import HealthBar from './components/HealthBar';
 import { CardData, CardEffect, Entity, GameState, LogEntry, Screen, UserProgress, CardTheme } from './types';
 import { generateDeck, EFFECT_CONFIG, DECK_COMPOSITION, CARD_THEMES } from './constants';
 import { generateDailyEnemy } from './services/gemini';
+import { initAudio, playSound } from './services/audio';
 
 const App: React.FC = () => {
   // --- Persistent User State ---
@@ -34,6 +35,10 @@ const App: React.FC = () => {
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [combo, setCombo] = useState<number>(0);
   
+  // Game History for Sharing
+  const [matchHistory, setMatchHistory] = useState<string[]>([]);
+  const [showCopied, setShowCopied] = useState(false);
+  
   // Entities
   const [player, setPlayer] = useState<Entity>({ 
     name: 'Hero', 
@@ -53,9 +58,14 @@ const App: React.FC = () => {
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   
-  // AI Memory
+  // Animations
+  const [playerAnim, setPlayerAnim] = useState<string>('');
+  const [enemyAnim, setEnemyAnim] = useState<string>('');
+  
+  // AI Memory & Game Control
   const aiMemory = useRef<Map<number, CardData>>(new Map());
   const logContainerRef = useRef<HTMLDivElement>(null);
+  const isGameOverRef = useRef(false);
 
   // --- Helpers ---
   const addLog = (message: string, type: LogEntry['type'] = 'info') => {
@@ -67,8 +77,22 @@ const App: React.FC = () => {
     return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   };
 
+  const triggerAnim = (target: 'PLAYER' | 'ENEMY', anim: string) => {
+    if (target === 'PLAYER') {
+      setPlayerAnim(anim);
+      setTimeout(() => setPlayerAnim(''), 500);
+    } else {
+      setEnemyAnim(anim);
+      setTimeout(() => setEnemyAnim(''), 500);
+    }
+  };
+
   // --- Game Initialization ---
   const initGame = useCallback(async () => {
+    // Initialize audio context on user interaction
+    initAudio();
+    
+    isGameOverRef.current = false;
     setGameState(GameState.LOADING);
     setScreen('GAME');
     const dateStr = getTodayString();
@@ -82,6 +106,9 @@ const App: React.FC = () => {
     setFlippedIndices([]);
     setLogs([]);
     setCombo(0);
+    setPlayerAnim('');
+    setEnemyAnim('');
+    setMatchHistory([]);
     aiMemory.current.clear();
 
     // Fetch Enemy
@@ -102,7 +129,9 @@ const App: React.FC = () => {
 
   // --- Reshuffle Logic ---
   const reshuffleDeck = useCallback(() => {
+    if (isGameOverRef.current) return;
     addLog("The dungeon rearranges itself...", 'info');
+    playSound('flip');
     
     let deckEffects: CardEffect[] = [];
     DECK_COMPOSITION.forEach(effect => {
@@ -149,6 +178,41 @@ const App: React.FC = () => {
     }
 
     const isPlayerSource = source === 'PLAYER';
+    
+    // Record History (only relevant moves for flavor)
+    if (isPlayerSource) {
+      let emoji = '⬜';
+      if (effect.includes('ATTACK')) emoji = '⚔️';
+      else if (effect.includes('HEAL')) emoji = '💚';
+      else if (effect.includes('SHIELD')) emoji = '🛡️';
+      else if (effect.includes('COIN')) emoji = '🪙';
+      setMatchHistory(prev => [...prev, emoji]);
+    } else {
+      // Record enemy move? Maybe just distinguish with red?
+      // For simplicity, let's only record player moves or major events for the share string
+      if (effect.includes('ATTACK')) setMatchHistory(prev => [...prev, '🩸']);
+    }
+
+    // Trigger Animations & Sounds
+    if (effect.includes('ATTACK')) {
+       playSound('attack');
+       if (isPlayerSource) {
+         triggerAnim('PLAYER', 'anim-attack-up');
+         setTimeout(() => triggerAnim('ENEMY', 'anim-damage'), 150);
+       } else {
+         triggerAnim('ENEMY', 'anim-attack-down');
+         setTimeout(() => triggerAnim('PLAYER', 'anim-damage'), 150);
+       }
+    } else if (effect.includes('HEAL')) {
+       playSound('heal');
+       triggerAnim(isPlayerSource ? 'PLAYER' : 'ENEMY', 'anim-heal');
+    } else if (effect.includes('SHIELD')) {
+       playSound('shield');
+       triggerAnim(isPlayerSource ? 'PLAYER' : 'ENEMY', 'anim-heal');
+    } else if (effect.includes('COIN') && isPlayerSource) {
+       playSound('coin');
+       triggerAnim('PLAYER', 'anim-heal');
+    }
 
     const damageEntity = (target: Entity, amount: number): Entity => {
       let dmg = amount;
@@ -209,10 +273,12 @@ const App: React.FC = () => {
 
   // --- Interaction Logic ---
   const handleCardClick = (clickedCard: CardData) => {
-    if (gameState !== GameState.PLAYER_TURN || flippedIndices.length >= 2) return;
+    if (gameState !== GameState.PLAYER_TURN || flippedIndices.length >= 2 || isGameOverRef.current) return;
 
     const realIndex = cards.findIndex(c => c.id === clickedCard.id);
     if (realIndex === -1) return;
+
+    playSound('flip');
 
     const newCards = [...cards];
     newCards[realIndex].isFlipped = true;
@@ -245,6 +311,8 @@ const App: React.FC = () => {
   };
 
   const handleMatch = (idx1: number, idx2: number, effect: CardEffect, who: 'PLAYER' | 'ENEMY') => {
+    if (isGameOverRef.current) return;
+
     setCards(prev => {
       const c = [...prev];
       if (c[idx1]) c[idx1].isMatched = true;
@@ -252,6 +320,15 @@ const App: React.FC = () => {
       return c;
     });
     setFlippedIndices([]);
+
+    if (who === 'PLAYER') {
+      playSound('match');
+      if (combo > 0) {
+        setTimeout(() => playSound('combo'), 100);
+      }
+    } else {
+      playSound('enemy_match');
+    }
 
     applyEffect(effect, who, combo);
     
@@ -261,16 +338,16 @@ const App: React.FC = () => {
     aiMemory.current.delete(idx1);
     aiMemory.current.delete(idx2);
 
-    // Player keeps turn on match
-    // Enemy keeps turn on match
-    // If enemy matched, it keeps turn. But to prevent infinite loops if AI is lucky, we might want to check logic.
-    // For now, standard logic: keep turn on match.
+    // If enemy matched, they usually get another turn.
+    // However, if the game is about to end, we shouldn't schedule it.
+    // The safest way is to schedule it, but executeAiTurn will check isGameOverRef.
     if (who === 'ENEMY') {
-      setTimeout(() => executeAiTurn(), 1000); // Enemy goes again
+      setTimeout(() => executeAiTurn(), 1000); 
     }
   };
 
   const unflipCards = (indices: number[]) => {
+    playSound('flip'); // Flip back sound
     setCards(prev => {
       const c = [...prev];
       indices.forEach(i => {
@@ -286,10 +363,15 @@ const App: React.FC = () => {
     if (gameState !== GameState.VICTORY && gameState !== GameState.DEFEAT) {
       if (player.currentHp <= 0) {
         setGameState(GameState.DEFEAT);
+        playSound('defeat');
+        isGameOverRef.current = true;
         return;
       }
       if (enemy.currentHp <= 0) {
         setGameState(GameState.VICTORY);
+        playSound('victory');
+        isGameOverRef.current = true;
+        
         // Save victory progress
         setUserProgress(prev => {
            // Add coins
@@ -317,7 +399,7 @@ const App: React.FC = () => {
   // --- AI Logic ---
   const executeAiTurn = () => {
     // If game ended, stop
-    if (player.currentHp <= 0 || enemy.currentHp <= 0) return;
+    if (isGameOverRef.current || player.currentHp <= 0 || enemy.currentHp <= 0) return;
 
     setGameState(GameState.ENEMY_ACTING);
     const memory = aiMemory.current;
@@ -333,6 +415,11 @@ const App: React.FC = () => {
         break;
       }
       seenEffects.set(card.effect, idx);
+    }
+
+    // NERF: 35% chance to "forget" a known match
+    if (matchFound && Math.random() < 0.35) {
+      matchFound = null;
     }
 
     const availableIndices = cards
@@ -357,6 +444,8 @@ const App: React.FC = () => {
 
     // AI Execute
     flipCardAI(firstIdx).then((card1) => {
+       if (isGameOverRef.current) return;
+       playSound('flip');
        aiMemory.current.set(firstIdx, card1);
 
        if (!matchFound) {
@@ -370,8 +459,14 @@ const App: React.FC = () => {
           }
 
           if (pairInMem !== -1) {
-             secondIdx = pairInMem;
-             addLog(`${enemy.name} recognizes that card!`, 'enemy');
+             // NERF: 40% chance to miss the connection
+             if (Math.random() < 0.4) {
+                 const validSeconds = availableIndices.filter(i => i !== firstIdx);
+                 secondIdx = validSeconds[Math.floor(Math.random() * validSeconds.length)];
+             } else {
+                 secondIdx = pairInMem;
+                 addLog(`${enemy.name} recognizes that card!`, 'enemy');
+             }
           } else {
              const validSeconds = availableIndices.filter(i => i !== firstIdx);
              secondIdx = validSeconds[Math.floor(Math.random() * validSeconds.length)];
@@ -379,7 +474,9 @@ const App: React.FC = () => {
        }
 
        setTimeout(() => {
+         if (isGameOverRef.current) return;
          flipCardAI(secondIdx).then((card2) => {
+            playSound('flip');
             aiMemory.current.set(secondIdx, card2);
             
             if (card1.effect === card2.effect) {
@@ -411,6 +508,21 @@ const App: React.FC = () => {
     });
   };
 
+  const shareResult = async () => {
+    const status = gameState === GameState.VICTORY ? '🏆 Victory' : '💀 Defeat';
+    const hp = Math.ceil(player.currentHp);
+    const moves = matchHistory.join('');
+    const text = `Fortune Flip 🏰\n${new Date().toDateString()}\nVS ${enemy.name}\n${status} (HP: ${hp}/10)\n\n${moves}\n\nPlay now!`;
+    
+    try {
+      await navigator.clipboard.writeText(text);
+      setShowCopied(true);
+      setTimeout(() => setShowCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy", err);
+    }
+  };
+
 
   // --- MENU COMPONENT ---
   const renderMenu = () => {
@@ -419,6 +531,7 @@ const App: React.FC = () => {
     const currentTheme = CARD_THEMES.find(t => t.id === userProgress.selectedThemeId) || CARD_THEMES[0];
 
     const claimDaily = () => {
+      playSound('coin');
       setUserProgress(prev => ({
         ...prev,
         coins: prev.coins + 1,
@@ -430,7 +543,7 @@ const App: React.FC = () => {
       <div className="flex flex-col items-center justify-center min-h-screen w-full max-w-2xl mx-auto p-4 gap-8">
          <div className="text-center space-y-2">
             <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-indigo-400 to-cyan-400">
-              Daily Dungeon
+              Fortune Flip
             </h1>
             <p className="text-slate-400">Match cards, build combos, survive.</p>
          </div>
@@ -493,6 +606,7 @@ const App: React.FC = () => {
   const renderStore = () => {
     const buyTheme = (theme: CardTheme) => {
       if (userProgress.coins >= theme.price) {
+        playSound('coin');
         setUserProgress(prev => ({
           ...prev,
           coins: prev.coins - theme.price,
@@ -503,6 +617,7 @@ const App: React.FC = () => {
     };
 
     const selectTheme = (id: string) => {
+      playSound('flip');
       setUserProgress(prev => ({ ...prev, selectedThemeId: id }));
     };
 
@@ -637,7 +752,7 @@ const App: React.FC = () => {
           <header className="flex flex-row justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">
-                Daily Dungeon
+                Fortune Flip
               </h1>
               <p className="text-xs text-slate-500 font-mono uppercase">
                 {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -646,7 +761,8 @@ const App: React.FC = () => {
             <button onClick={() => setScreen('MENU')} className="text-xs text-slate-400 hover:text-white">Exit Run</button>
           </header>
 
-          <div className="bg-slate-800/60 p-4 rounded-xl border border-red-900/30 shadow-lg">
+          {/* ENEMY SECTION */}
+          <div className={`bg-slate-800/60 p-4 rounded-xl border border-red-900/30 shadow-lg ${enemyAnim}`}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 rounded-full bg-red-900/20 flex items-center justify-center border border-red-500/30">
                 <Skull className="text-red-500 w-6 h-6" />
@@ -659,7 +775,8 @@ const App: React.FC = () => {
             <HealthBar current={enemy.currentHp} max={enemy.maxHp} shield={enemy.shield} label="ENEMY HP" isEnemy />
           </div>
 
-          <div className="bg-slate-800/60 p-4 rounded-xl border border-indigo-900/30 shadow-lg relative overflow-hidden">
+          {/* PLAYER SECTION */}
+          <div className={`bg-slate-800/60 p-4 rounded-xl border border-indigo-900/30 shadow-lg relative overflow-hidden ${playerAnim}`}>
              {combo > 1 && (
                <div className="absolute top-2 right-2 flex items-center gap-1 text-yellow-400 font-bold animate-bounce bg-black/50 px-2 rounded-full border border-yellow-500/50">
                  <Zap className="w-3 h-3 fill-yellow-400" />
@@ -731,6 +848,7 @@ const App: React.FC = () => {
                 onClick={handleCardClick} 
                 disabled={gameState !== GameState.PLAYER_TURN}
                 theme={activeTheme}
+                combo={combo}
               />
             ))}
           </div>
@@ -751,14 +869,28 @@ const App: React.FC = () => {
                       <p className="text-slate-400">The {enemy.name} was too strong...</p>
                     </div>
                   )}
+
+                  <div className="w-full bg-slate-800 rounded-lg p-3 my-4 font-mono text-xs tracking-widest text-slate-400 break-words border border-slate-700">
+                      {matchHistory.length > 0 ? matchHistory.join(' ') : 'No moves recorded.'}
+                  </div>
                   
-                  <button 
-                    onClick={() => setScreen('MENU')}
-                    className="mt-8 w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    Return to Menu
-                  </button>
+                  <div className="flex gap-3 w-full">
+                    <button 
+                        onClick={shareResult}
+                        className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                        {showCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                        {showCopied ? 'Copied!' : 'Share Result'}
+                    </button>
+
+                    <button 
+                        onClick={() => setScreen('MENU')}
+                        className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        Menu
+                    </button>
+                  </div>
                </div>
             </div>
           )}

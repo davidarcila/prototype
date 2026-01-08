@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Daily Dungeon Memory</title>
+    <title>Fortune Flip</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       /* Custom flip utility */
@@ -18,6 +18,86 @@
       }
       .rotate-y-180 {
         transform: rotateY(180deg);
+      }
+      
+      /* Visual Flair Animations */
+      @keyframes pulse-gold {
+        0%, 100% { box-shadow: 0 0 0 0px rgba(234, 179, 8, 0); border-color: rgba(234, 179, 8, 0.3); }
+        50% { box-shadow: 0 0 15px 2px rgba(234, 179, 8, 0.4); border-color: rgba(234, 179, 8, 0.8); }
+      }
+      .combo-active {
+        animation: pulse-gold 1.5s infinite;
+      }
+
+      @keyframes flip-flare {
+        0% { transform: scale(0.9); opacity: 0.8; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.8); }
+        100% { transform: scale(1.4); opacity: 0; box-shadow: 0 0 40px 10px rgba(255, 255, 255, 0); }
+      }
+      .animate-flip-flare {
+        animation: flip-flare 0.6s ease-out forwards;
+      }
+
+      @keyframes shockwave {
+         0% { transform: scale(1); opacity: 1; border-width: 2px; }
+         100% { transform: scale(2); opacity: 0; border-width: 0px; }
+      }
+      .animate-shockwave {
+         animation: shockwave 0.5s ease-out forwards;
+      }
+
+      /* Combat Animations */
+      @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-4px) rotate(-1deg); }
+          40% { transform: translateX(4px) rotate(1deg); }
+          60% { transform: translateX(-2px); }
+          80% { transform: translateX(2px); }
+      }
+      
+      @keyframes flash-damage {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: rgba(127, 29, 29, 0.3); }
+          50% { box-shadow: 0 0 20px 0 rgba(239, 68, 68, 0.3) inset; border-color: rgba(239, 68, 68, 0.8); }
+      }
+
+      @keyframes lunge-up {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px) scale(1.02); }
+      }
+      @keyframes lunge-down {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(10px) scale(1.02); }
+      }
+      
+      @keyframes flash-heal {
+           0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+           50% { box-shadow: 0 0 20px 0 rgba(34, 197, 94, 0.3) inset; border-color: rgba(34, 197, 94, 0.8); }
+      }
+      
+      @keyframes pop {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+      }
+      .animate-pop {
+        animation: pop 0.4s ease-out;
+      }
+
+      .anim-damage {
+          animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both, flash-damage 0.5s ease-in-out;
+      }
+      
+      .anim-attack-up {
+          animation: lunge-up 0.3s ease-out;
+          z-index: 20;
+      }
+      
+      .anim-attack-down {
+          animation: lunge-down 0.3s ease-out;
+          z-index: 20;
+      }
+
+      .anim-heal {
+          animation: flash-heal 0.5s ease-in-out;
       }
     </style>
   <script type="importmap">
