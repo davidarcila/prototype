@@ -1,5 +1,5 @@
 {
-  "name": "Coin Flip Tycoon",
-  "description": "A React-based incremental clicker game where you flip coins for profit. Upgrade your coin's value, flip speed, and automate the process. Features an AI Financial Guru powered by Gemini for strategic advice.",
+  "name": "Daily Dungeon Memory",
+  "description": "A roguelike memory card game where you battle a daily monster by matching ability cards.",
   "requestFramePermissions": []
 }

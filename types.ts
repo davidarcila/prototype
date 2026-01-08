@@ -1,40 +1,63 @@
-export interface GameState {
-  money: number;
-  totalFlips: number;
-  totalHeads: number;
-  paragonPoints: number; // Prestige currency
-  upgrades: {
-    value: number; // Index in VALUE_LEVELS
-    speed: number; // Index in SPEED_LEVELS
-    odds: number;  // Index in ODDS_LEVELS
-    auto: number;  // Index in AUTO_LEVELS
-    count: number; // Index in COUNT_LEVELS
-    crit: number;  // Index in CRIT_LEVELS
-  };
+export enum CardEffect {
+  ATTACK_SMALL = 'ATTACK_SMALL',
+  ATTACK_MEDIUM = 'ATTACK_MEDIUM',
+  ATTACK_BIG = 'ATTACK_BIG',
+  HEAL_SMALL = 'HEAL_SMALL',
+  HEAL_MEDIUM = 'HEAL_MEDIUM',
+  SHIELD = 'SHIELD',
+  COIN_SMALL = 'COIN_SMALL',
+  COIN_MEDIUM = 'COIN_MEDIUM',
 }
 
-export enum CoinSide {
-  HEADS = 'HEADS',
-  TAILS = 'TAILS',
+export interface CardData {
+  id: string;
+  effect: CardEffect;
+  isFlipped: boolean;
+  isMatched: boolean;
 }
 
-export interface CoinState {
-  id: number;
-  side: CoinSide;
-  isFlipping: boolean;
-  lastWin: number | null;
-  isCrit: boolean;
-}
-
-export interface UpgradeConfig {
-  id: keyof GameState['upgrades'];
+export interface Entity {
   name: string;
-  description: string;
-  costs: number[]; // Fixed costs per level
+  maxHp: number;
+  currentHp: number;
+  shield: number;
+  coins?: number;
+  description?: string;
+  dateEncountered?: string;
 }
 
-export interface FlipResult {
-  side: CoinSide;
-  payout: number;
-  isCrit: boolean;
+export enum GameState {
+  LOADING = 'LOADING',
+  PLAYER_TURN = 'PLAYER_TURN',
+  ENEMY_THINKING = 'ENEMY_THINKING',
+  ENEMY_ACTING = 'ENEMY_ACTING',
+  VICTORY = 'VICTORY',
+  DEFEAT = 'DEFEAT',
+}
+
+export interface LogEntry {
+  id: string;
+  message: string;
+  type: 'info' | 'player' | 'enemy' | 'heal';
+}
+
+export type Screen = 'MENU' | 'GAME' | 'STORE' | 'BESTIARY';
+
+export interface CardTheme {
+  id: string;
+  name: string;
+  price: number;
+  description: string;
+  // CSS classes for the back container
+  bgClass: string;
+  // CSS classes for the inner decoration
+  decorClass: string;
+}
+
+export interface UserProgress {
+  coins: number;
+  unlockedThemes: string[];
+  selectedThemeId: string;
+  lastDailyClaim: string;
+  bestiary: Entity[]; // List of defeated enemies
 }
