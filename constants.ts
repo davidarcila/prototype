@@ -27,7 +27,7 @@ export const EFFECT_CONFIG = {
   // Rebalanced for 10 Max HP
   [CardEffect.ATTACK_SMALL]: { value: 2, label: 'Attack', icon: 'sword-sm', color: 'text-red-400' },
   [CardEffect.ATTACK_MEDIUM]: { value: 4, label: 'Slash', icon: 'sword-md', color: 'text-red-500' },
-  [CardEffect.ATTACK_BIG]: { value: 8, label: 'Heavy Hit', icon: 'sword-lg', color: 'text-red-600' },
+  [CardEffect.ATTACK_BIG]: { value: 6, label: 'Heavy Hit', icon: 'sword-lg', color: 'text-red-600' },
   [CardEffect.HEAL_SMALL]: { value: 2, label: 'Heal', icon: 'potion-sm', color: 'text-emerald-400' },
   [CardEffect.HEAL_MEDIUM]: { value: 4, label: 'Big Heal', icon: 'potion-md', color: 'text-emerald-500' },
   [CardEffect.SHIELD]: { value: 2, label: 'Shield', icon: 'shield', color: 'text-indigo-300' },

@@ -1,11 +1,24 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, ArrowUpCircle, RectangleVertical, Heart } from 'lucide-react';
+import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, ArrowUpCircle, RectangleVertical, Heart, Eye } from 'lucide-react';
 import Card from './components/Card';
 import HealthBar from './components/HealthBar';
 import { CardData, CardEffect, Entity, GameState, LogEntry, Screen, UserProgress, CardTheme } from './types';
 import { generateDeck, EFFECT_CONFIG, DECK_COMPOSITION, CARD_THEMES, GAME_VERSION } from './constants';
 import { generateDailyEnemy } from './services/gemini';
 import { initAudio, playSound } from './services/audio';
+
+const LOADING_PHRASES = [
+  "Shuffling Destiny...",
+  "Building the Spire...",
+  "Awakening Guardians...",
+  "Dealing Fate...",
+  "Sharpening Blades...",
+  "Counting Gold...",
+  "Summoning Monsters...",
+  "Reading the Stars...",
+  "Gathering Mana..."
+];
 
 const App: React.FC = () => {
   // --- Persistent User State ---
@@ -35,6 +48,11 @@ const App: React.FC = () => {
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [combo, setCombo] = useState<number>(0);
   const [isShuffling, setIsShuffling] = useState(false);
+  const [announcement, setAnnouncement] = useState<string | null>(null);
+  const [loadingPhrase, setLoadingPhrase] = useState<string>("Loading...");
+  
+  // Track if it is the first turn of the round (for Foretell mechanic)
+  const isFirstTurnRef = useRef<boolean>(true);
   
   // Run State
   const [enemies, setEnemies] = useState<Entity[]>([]);
@@ -51,6 +69,7 @@ const App: React.FC = () => {
     currentHp: 12, 
     shield: 0, 
     coins: 0,
+    visual: '🧙',
     difficulty: 'EASY'
   });
   
@@ -61,6 +80,7 @@ const App: React.FC = () => {
     currentHp: 10, 
     shield: 0, 
     description: '',
+    visual: '❓',
     difficulty: 'EASY'
   };
 
@@ -96,11 +116,19 @@ const App: React.FC = () => {
     }
   };
 
+  const showAnnouncement = (text: string, duration: number = 2000) => {
+    setAnnouncement(text);
+    setTimeout(() => setAnnouncement(null), duration);
+  };
+
   // --- Game Initialization ---
   const startRun = useCallback(async () => {
     // Initialize audio context on user interaction
     initAudio();
     
+    // Pick random loading phrase
+    setLoadingPhrase(LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)]);
+
     isGameOverRef.current = false;
     aiMistakeMade.current = false;
     setGameState(GameState.LOADING);
@@ -108,7 +136,7 @@ const App: React.FC = () => {
     
     // Reset Run State
     setCurrentFloor(0);
-    setPlayer({ name: 'Hero', maxHp: 12, currentHp: 12, shield: 0, coins: 0, difficulty: 'EASY' });
+    setPlayer({ name: 'Hero', maxHp: 12, currentHp: 12, shield: 0, coins: 0, visual: '🧙', difficulty: 'EASY' });
     setMatchHistory([]);
     setLogs([]);
     setIsShuffling(false);
@@ -129,6 +157,7 @@ const App: React.FC = () => {
     setPlayerAnim('');
     setEnemyAnim('');
     setIsShuffling(false);
+    isFirstTurnRef.current = true; // Reset first turn trigger
     
     // Generate new deck for the floor
     const initialDeck = generateDeck(`${getTodayString()}-floor-${currentFloor}`);
@@ -144,8 +173,17 @@ const App: React.FC = () => {
        playSound('ascend');
        const nextF = currentFloor + 1;
        setCurrentFloor(nextF);
-       // Small heal between floors
-       setPlayer(p => ({ ...p, currentHp: Math.min(p.maxHp, p.currentHp + 3) }));
+       
+       setPlayer(p => {
+          if (p.currentHp >= p.maxHp) {
+            // Give 5 coins if full health
+            return { ...p, coins: (p.coins || 0) + 5 };
+          } else {
+            // Small heal between floors
+            return { ...p, currentHp: Math.min(p.maxHp, p.currentHp + 3) };
+          }
+       });
+       
        startLevel(enemies[nextF]);
     }
   };
@@ -189,6 +227,7 @@ const App: React.FC = () => {
         setFlippedIndices([]);
         aiMemory.current.clear();
         setIsShuffling(false);
+        isFirstTurnRef.current = true; // Reset first turn trigger on reshuffle
 
         // Check if it was Enemy's turn when board cleared
         if (currentTurnState === GameState.ENEMY_ACTING || currentTurnState === GameState.ENEMY_THINKING) {
@@ -327,6 +366,50 @@ const App: React.FC = () => {
     }
   };
 
+  // --- Foretell Logic ---
+  const triggerForetell = () => {
+    // 1. Announce
+    playSound('ascend');
+    // Show announcement briefly so it clears quickly
+    showAnnouncement("FORETELL!", 1000);
+    addLog("First match! The cards reveal themselves...", 'info');
+    
+    // 2. Select 2 random cards that are NOT matched and NOT flipped
+    const candidates = cards
+      .map((c, i) => ({ ...c, originalIndex: i }))
+      .filter(c => !c.isMatched && !c.isFlipped);
+    
+    if (candidates.length === 0) return;
+
+    // Pick 2 (or 1 if only 1 left)
+    const shuffled = candidates.sort(() => 0.5 - Math.random());
+    const revealed = shuffled.slice(0, 2);
+    const indicesToReveal = revealed.map(c => c.originalIndex);
+
+    if (indicesToReveal.length === 0) return;
+
+    // 3. Temporarily Flip
+    setIsShuffling(true); // Block input
+    
+    // Update AI Memory immediately (AI sees them too)
+    revealed.forEach(c => {
+        aiMemory.current.set(c.originalIndex, c);
+    });
+
+    // Animate flip up
+    setCards(prev => prev.map((c, i) => 
+        indicesToReveal.includes(i) ? { ...c, isFlipped: true } : c
+    ));
+
+    // 4. Flip back after delay (Increased to 2500ms)
+    setTimeout(() => {
+        setCards(prev => prev.map((c, i) => 
+            indicesToReveal.includes(i) ? { ...c, isFlipped: false } : c
+        ));
+        setIsShuffling(false); // Unblock
+    }, 2500);
+  };
+
   // --- Interaction Logic ---
   const handleCardClick = (clickedCard: CardData) => {
     if (gameState !== GameState.PLAYER_TURN || flippedIndices.length >= 2 || isGameOverRef.current || isShuffling) return;
@@ -348,23 +431,24 @@ const App: React.FC = () => {
         aiMemory.current.set(realIndex, clickedCard);
 
         if (newFlipped.length === 2) {
-        const card1 = newCards[newFlipped[0]];
-        const card2 = newCards[newFlipped[1]];
+            const card1 = newCards[newFlipped[0]];
+            const card2 = newCards[newFlipped[1]];
 
-        if (card1.effect === card2.effect) {
-            // MATCH
-            setTimeout(() => {
-            handleMatch(newFlipped[0], newFlipped[1], card1.effect, 'PLAYER');
-            }, 500);
-        } else {
-            // NO MATCH
-            setTimeout(() => {
-            unflipCards(newFlipped);
-            // End turn, reset combo
-            setCombo(0); 
-            setGameState(GameState.ENEMY_THINKING);
-            }, 1000);
-        }
+            if (card1.effect === card2.effect) {
+                // MATCH
+                setTimeout(() => {
+                    handleMatch(newFlipped[0], newFlipped[1], card1.effect, 'PLAYER');
+                }, 500);
+            } else {
+                // NO MATCH
+                isFirstTurnRef.current = false; // Missed the first turn foretell chance
+                setTimeout(() => {
+                    unflipCards(newFlipped);
+                    // End turn, reset combo
+                    setCombo(0); 
+                    setGameState(GameState.ENEMY_THINKING);
+                }, 1000);
+            }
         }
     }, 50);
   };
@@ -384,6 +468,12 @@ const App: React.FC = () => {
       playSound('match');
       if (combo > 0) {
         setTimeout(() => playSound('combo'), 100);
+      }
+      
+      // Check for Foretell
+      if (isFirstTurnRef.current) {
+         setTimeout(() => triggerForetell(), 600); // Trigger after match sound/anim
+         isFirstTurnRef.current = false;
       }
     } else {
       playSound('enemy_match');
@@ -460,6 +550,20 @@ const App: React.FC = () => {
   }, [player.currentHp, enemy?.currentHp, gameState, currentFloor]);
 
   // --- AI Logic ---
+  const flipCardAI = (index: number): Promise<CardData> => {
+    return new Promise((resolve) => {
+      setCards(prev => {
+        const newCards = [...prev];
+        if (newCards[index]) {
+          newCards[index].isFlipped = true;
+        }
+        return newCards;
+      });
+      setFlippedIndices(prev => [...prev, index]);
+      resolve(cards[index]);
+    });
+  };
+
   const executeAiTurn = () => {
     // If game ended, stop
     if (isGameOverRef.current || player.currentHp <= 0 || enemy.currentHp <= 0) return;
@@ -484,9 +588,9 @@ const App: React.FC = () => {
             guaranteedMistake = true;
             break;
         case 'HARD':
-            mistakeChance = 0.1;
-            forgetChance = 0.1;
-            guaranteedMistake = false;
+            mistakeChance = 0.25; // Nerfed Boss: increased from 0.1
+            forgetChance = 0.2;   // Nerfed Boss: increased from 0.1
+            guaranteedMistake = true; // Nerfed Boss: guarantees at least one mistake
             break;
     }
     
@@ -818,14 +922,8 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-10">
                {userProgress.bestiary.map((entry, idx) => (
                  <div key={idx} className="bg-slate-900 p-0 rounded-sm border border-slate-800 overflow-hidden group hover:border-indigo-900/30 transition-colors">
-                    <div className="h-32 w-full bg-black relative overflow-hidden">
-                       {entry.imageUrl ? (
-                         <img src={entry.imageUrl} alt={entry.name} className="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity grayscale hover:grayscale-0" />
-                       ) : (
-                         <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                            <Skull className="text-slate-800 w-12 h-12" />
-                         </div>
-                       )}
+                    <div className="h-32 w-full bg-black relative flex items-center justify-center bg-gradient-to-t from-slate-900 to-slate-800">
+                         <span className="text-6xl filter drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">{entry.visual}</span>
                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent"></div>
                        <div className="absolute bottom-2 left-3">
                           <h3 className="font-bold text-lg font-serif text-slate-200">{entry.name}</h3>
@@ -855,17 +953,32 @@ const App: React.FC = () => {
 
     if (gameState === GameState.LOADING) {
       return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
-          <div className="flex flex-col items-center gap-4 animate-pulse">
-            <RefreshCw className="w-8 h-8 animate-spin text-indigo-900" />
-            <p className="text-sm font-serif italic text-slate-500">Generating dungeon...</p>
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white relative">
+          <div className="flex flex-col items-center gap-8">
+            <div className="relative w-32 h-32 flex items-center justify-center animate-orbit">
+               <div className="loader-card" style={{ transform: 'translateY(-40px)' }}></div>
+               <div className="loader-card" style={{ transform: 'rotate(120deg) translateY(-40px)' }}></div>
+               <div className="loader-card" style={{ transform: 'rotate(240deg) translateY(-40px)' }}></div>
+            </div>
+            <p className="text-sm font-serif italic text-slate-400 animate-pulse tracking-widest uppercase">{loadingPhrase}</p>
           </div>
         </div>
       );
     }
 
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col md:flex-row max-w-7xl mx-auto">
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col md:flex-row max-w-7xl mx-auto relative overflow-hidden">
+        
+        {/* Foretell Announcement Overlay */}
+        {announcement && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+                 <div className="animate-pop text-6xl md:text-8xl font-bold text-white font-serif tracking-tighter drop-shadow-[0_0_30px_rgba(255,255,255,0.8)] flex flex-col items-center gap-2">
+                    <span>{announcement}</span>
+                    <Eye className="w-12 h-12 text-indigo-400 animate-pulse" />
+                 </div>
+            </div>
+        )}
+
         {/* LEFT PANEL */}
         <div className="w-full md:w-80 lg:w-96 p-2 md:p-4 flex flex-col border-b md:border-b-0 md:border-r border-slate-900 bg-slate-900/30 z-20 shadow-2xl">
           <header className="flex flex-row justify-between items-center mb-2">
@@ -887,12 +1000,8 @@ const App: React.FC = () => {
              {/* ENEMY SECTION */}
             <div className={`col-span-1 bg-slate-900/50 p-2 md:p-4 rounded-sm border border-red-900/20 shadow-lg ${enemyAnim} transition-transform`}>
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-black/40 flex items-center justify-center border border-red-900/30 overflow-hidden">
-                   {enemy.imageUrl ? (
-                     <img src={enemy.imageUrl} alt="enemy" className="w-full h-full object-cover opacity-80" />
-                   ) : (
-                     <Skull className="text-red-900 w-4 h-4 md:w-5 md:h-5" />
-                   )}
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-sm bg-black/40 flex items-center justify-center border border-red-900/30 overflow-hidden text-2xl md:text-3xl">
+                   {enemy.visual}
                 </div>
                 <div className="overflow-hidden">
                   <div className="flex items-center gap-1">
@@ -914,8 +1023,8 @@ const App: React.FC = () => {
                 </div>
               )}
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-black/40 flex items-center justify-center border border-indigo-900/30">
-                  <ShieldAlert className="text-indigo-800 w-4 h-4 md:w-5 md:h-5" />
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-sm bg-black/40 flex items-center justify-center border border-indigo-900/30 text-2xl md:text-3xl">
+                  {player.visual}
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <h2 className="font-bold text-xs md:text-sm leading-none truncate font-serif text-slate-300">{player.name}</h2>
@@ -998,13 +1107,23 @@ const App: React.FC = () => {
                       <h2 className="text-2xl font-bold font-serif text-slate-200">Floor Cleared</h2>
                       <p className="text-slate-500 text-sm font-serif italic">The echo of {enemy.name} fades.</p>
                       
-                      <div className="flex flex-col items-center gap-2 mt-2 p-3 bg-emerald-950/20 border border-emerald-900/50 rounded-lg w-full">
-                          <div className="flex items-center gap-2">
-                            <Heart className="w-5 h-5 text-emerald-400 animate-bounce" />
-                            <span className="text-emerald-300 font-bold font-serif text-sm animate-heal-glow">Resting at Campfire</span>
-                          </div>
-                          <span className="text-emerald-500/80 text-xs uppercase tracking-widest">+3 Health Recovered</span>
-                      </div>
+                      {player.currentHp >= player.maxHp ? (
+                        <div className="flex flex-col items-center gap-2 mt-2 p-3 bg-amber-950/20 border border-amber-900/50 rounded-lg w-full">
+                            <div className="flex items-center gap-2">
+                                <Coins className="w-5 h-5 text-amber-400 animate-bounce" />
+                                <span className="text-amber-300 font-bold font-serif text-sm">Perfect Health!</span>
+                            </div>
+                            <span className="text-amber-500/80 text-xs uppercase tracking-widest">+5 Coins Found</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 mt-2 p-3 bg-emerald-950/20 border border-emerald-900/50 rounded-lg w-full">
+                            <div className="flex items-center gap-2">
+                                <Heart className="w-5 h-5 text-emerald-400 animate-bounce" />
+                                <span className="text-emerald-300 font-bold font-serif text-sm animate-heal-glow">Resting at Campfire</span>
+                            </div>
+                            <span className="text-emerald-500/80 text-xs uppercase tracking-widest">+3 Health Recovered</span>
+                        </div>
+                      )}
 
                       <button 
                         onClick={nextFloor}

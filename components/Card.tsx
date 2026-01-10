@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CardData, CardEffect, CardTheme } from '../types';
 import { EFFECT_CONFIG } from '../constants';
@@ -80,11 +81,11 @@ const Card: React.FC<CardProps> = ({ card, onClick, disabled, theme, combo, inde
           <div className="mb-1 md:mb-2 relative z-10">
             {renderIcon()}
           </div>
-          <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider relative z-10 hidden sm:block">{config.label}</span>
-          <span className="text-[8px] md:text-[10px] opacity-70 mt-1 relative z-10">
+          <span className="text-sm md:text-base font-bold uppercase tracking-wider relative z-10 hidden sm:block">{config.label}</span>
+          <span className="text-xs md:text-sm font-bold opacity-90 mt-1 font-mono relative z-10">
              {card.effect.includes('ATTACK') ? `DMG ${config.value}` : 
               card.effect.includes('HEAL') ? `HP +${config.value}` :
-              card.effect.includes('SHIELD') ? `ARM +${config.value}` :
+              card.effect.includes('SHIELD') ? `ARMOR +${config.value}` :
               `+${config.value}`}
           </span>
         </div>

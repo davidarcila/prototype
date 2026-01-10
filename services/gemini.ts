@@ -2,42 +2,36 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Entity } from "../types";
 
-// Helper to generate a deterministic visual url based on name
-const getImageUrl = (name: string) => {
-  const encodedName = encodeURIComponent(`${name} portrait, darkest dungeon art style, black and white, pixel art, heavy shadows, low resolution`);
-  return `https://image.pollinations.ai/prompt/${encodedName}?width=256&height=256&nologo=true&seed=42`;
-};
-
 export const generateDailyEnemy = async (dateString: string): Promise<Entity[]> => {
   // Fallback enemies if API fails
   const fallbackEnemies: Entity[] = [
     {
       name: "Rotting Rat",
-      maxHp: 8,
-      currentHp: 8,
+      maxHp: 6,
+      currentHp: 6,
       shield: 0,
       description: "It gnaws at the roots of the world.",
-      imageUrl: getImageUrl("Rotting Rat"),
+      visual: "🐀",
       coins: 0,
       difficulty: 'EASY'
     },
     {
       name: "Hollow Guard",
-      maxHp: 12,
-      currentHp: 12,
+      maxHp: 10,
+      currentHp: 10,
       shield: 0,
       description: "Armor rusting over nothing but dust.",
-      imageUrl: getImageUrl("Hollow Guard"),
+      visual: "🛡️",
       coins: 0,
       difficulty: 'MEDIUM'
     },
     {
       name: "The Forgotten",
-      maxHp: 20,
-      currentHp: 20,
+      maxHp: 15,
+      currentHp: 15,
       shield: 0,
       description: "It remembers you, but you do not remember it.",
-      imageUrl: getImageUrl("The Forgotten"),
+      visual: "👁️",
       coins: 0,
       difficulty: 'HARD'
     }
@@ -56,10 +50,11 @@ export const generateDailyEnemy = async (dateString: string): Promise<Entity[]> 
       contents: `Generate 3 fantasy enemies for a roguelike card game Daily Run (Date: ${dateString}). 
                  The tone should be "Dark Fantasy" but the descriptions should be clear, concise, and descriptive (not overly poetic or cryptic).
                  Max 12 words per description.
+                 For each enemy, provide a single UTF-8 Emoji that best represents it in the "visual" field.
                  
-                 1. First enemy: Difficulty Easy (Weak, ~8 HP).
-                 2. Second enemy: Difficulty Medium (Average, ~12 HP).
-                 3. Third enemy: Difficulty Hard (Boss, ~20 HP).
+                 1. First enemy: Difficulty Easy (Weak, ~6 HP).
+                 2. Second enemy: Difficulty Medium (Average, ~10 HP).
+                 3. Third enemy: Difficulty Hard (Boss, ~15 HP).
                  
                  Return them as a JSON list.`,
       config: {
@@ -72,8 +67,9 @@ export const generateDailyEnemy = async (dateString: string): Promise<Entity[]> 
               name: { type: Type.STRING },
               maxHp: { type: Type.INTEGER },
               description: { type: Type.STRING },
+              visual: { type: Type.STRING, description: "A single emoji representing the enemy" }
             },
-            required: ["name", "maxHp", "description"],
+            required: ["name", "maxHp", "description", "visual"],
           }
         },
       },
@@ -83,9 +79,9 @@ export const generateDailyEnemy = async (dateString: string): Promise<Entity[]> 
       const data = JSON.parse(response.text) as any[];
       if (Array.isArray(data) && data.length >= 3) {
          return [
-           { ...data[0], currentHp: data[0].maxHp, shield: 0, coins: 0, difficulty: 'EASY', imageUrl: getImageUrl(data[0].name) },
-           { ...data[1], currentHp: data[1].maxHp, shield: 0, coins: 0, difficulty: 'MEDIUM', imageUrl: getImageUrl(data[1].name) },
-           { ...data[2], currentHp: data[2].maxHp, shield: 0, coins: 0, difficulty: 'HARD', imageUrl: getImageUrl(data[2].name) },
+           { ...data[0], currentHp: data[0].maxHp, shield: 0, coins: 0, difficulty: 'EASY' },
+           { ...data[1], currentHp: data[1].maxHp, shield: 0, coins: 0, difficulty: 'MEDIUM' },
+           { ...data[2], currentHp: data[2].maxHp, shield: 0, coins: 0, difficulty: 'HARD' },
          ];
       }
     }

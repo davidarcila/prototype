@@ -107,6 +107,30 @@
         animation: heal-glow 2s ease-in-out infinite;
       }
 
+      /* Loader Animation */
+      @keyframes orbit {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      .animate-orbit {
+        animation: orbit 3s linear infinite;
+      }
+      
+      .loader-card {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        margin: auto;
+        width: 32px;
+        height: 48px;
+        border-radius: 4px;
+        background: linear-gradient(135deg, #312e81, #1e1b4b);
+        border: 1px solid #6366f1;
+        box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+      }
+
       .anim-damage {
           animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both, flash-damage 0.5s ease-in-out;
       }
