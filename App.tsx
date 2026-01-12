@@ -1305,7 +1305,7 @@ const App: React.FC = () => {
         </div>
 
         {/* RIGHT PANEL: BOARD */}
-        <div className="flex-1 p-2 md:p-8 flex flex-col items-center justify-start md:justify-center relative bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
+        <div className="flex-1 p-2 pb-24 md:p-8 md:pb-8 flex flex-col items-center justify-start md:justify-center relative bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
           
           {/* Turn Indicator */}
           <div className="absolute top-2 md:top-8 flex items-center gap-2 px-4 py-1.5 rounded-sm bg-black/40 backdrop-blur border border-slate-800 shadow-2xl z-10 transition-all duration-300">
@@ -1342,7 +1342,7 @@ const App: React.FC = () => {
 
           {/* OVERLAYS (Victory / Defeat / Level Clear) */}
           {(gameState === GameState.VICTORY || gameState === GameState.DEFEAT || gameState === GameState.LEVEL_COMPLETE) && (
-            <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 pb-24 md:p-4">
                {gameState === GameState.VICTORY ? (
                    // Replace standard victory modal with Tower Ascension Screen
                    <TowerAscension 
