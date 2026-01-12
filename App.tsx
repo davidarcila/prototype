@@ -223,8 +223,12 @@ const TowerLevelTransition = ({ currentFloor, onNext }: { currentFloor: number, 
 
 // --- TOWER ASCENSION VICTORY COMPONENT (End of Run) ---
 const TowerAscension = ({ onContinue, floorCleared, onShare, showCopied }: { onContinue: () => void, floorCleared: boolean, onShare: () => void, showCopied: boolean }) => {
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const todayIndex = new Date().getDay();
+  // Changed week start to Monday
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  
+  // Calculate index with Monday as 0
+  const today = new Date().getDay(); // 0 is Sunday
+  const todayIndex = today === 0 ? 6 : today - 1;
   
   const renderFloors = () => {
     return days.map((day, idx) => {
@@ -1200,7 +1204,7 @@ const App: React.FC = () => {
     }
 
     return (
-      <div className="min-h-screen text-slate-100 font-sans flex flex-col md:flex-row max-w-7xl mx-auto relative overflow-hidden z-10">
+      <div className="h-screen text-slate-100 font-sans flex flex-col md:flex-row max-w-7xl mx-auto relative overflow-hidden z-10">
         
         {/* Foretell Announcement Overlay */}
         {announcement && (
@@ -1213,7 +1217,7 @@ const App: React.FC = () => {
         )}
 
         {/* LEFT PANEL */}
-        <div className="w-full md:w-80 lg:w-96 p-2 md:p-4 flex flex-col border-b md:border-b-0 md:border-r border-slate-900 bg-slate-900/30 z-20 shadow-2xl">
+        <div className="w-full md:w-80 lg:w-96 p-2 md:p-4 flex flex-col border-b md:border-b-0 md:border-r border-slate-900 bg-slate-900/30 z-20 shadow-2xl overflow-hidden">
           <header className="flex flex-row justify-between items-center mb-2">
              <div className="flex flex-col">
                {/* TOWER PROGRESS */}
@@ -1229,7 +1233,7 @@ const App: React.FC = () => {
           </header>
 
           {/* STATS GRID */}
-          <div className="grid grid-cols-2 md:grid-cols-1 gap-2 md:gap-4 mb-2 md:mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-1 gap-2 md:gap-4 mb-2 md:mb-4 flex-none">
              {/* ENEMY SECTION */}
             <div className={`col-span-1 bg-slate-900/50 p-2 md:p-4 rounded-sm border border-red-900/20 shadow-lg ${enemyAnim} transition-transform relative overflow-hidden`}>
               {combo > 1 && comboOwner === 'ENEMY' && (
@@ -1277,7 +1281,7 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-none h-14 md:h-auto md:flex-1 bg-slate-950/50 rounded-sm border border-slate-900 p-2 md:p-3 overflow-hidden flex flex-col relative">
+          <div className="flex-none h-14 md:min-h-0 md:flex-1 bg-slate-950/50 rounded-sm border border-slate-900 p-2 md:p-3 overflow-hidden flex flex-col relative">
             <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-slate-950 to-transparent pointer-events-none" />
             <div 
               ref={logContainerRef}
