@@ -1,7 +1,7 @@
 
 import { CardEffect, CardData, CardTheme } from './types';
 
-export const GAME_VERSION = '1.1.0';
+export const GAME_VERSION = '1.2.0';
 
 // Simple seeded RNG for the daily board layout
 export class SeededRNG {
@@ -82,7 +82,7 @@ export const CARD_THEMES: CardTheme[] = [
   {
     id: 'dragon',
     name: 'Wyrm',
-    price: 50,
+    price: 25,
     description: 'Scales of a red dragon.',
     bgClass: 'bg-gradient-to-br from-red-950 to-orange-950 border-red-900',
     decorClass: 'bg-red-500/10'
@@ -90,7 +90,7 @@ export const CARD_THEMES: CardTheme[] = [
   {
     id: 'nature',
     name: 'Sylvan',
-    price: 100,
+    price: 50,
     description: 'Forest magic design.',
     bgClass: 'bg-gradient-to-br from-emerald-950 to-green-950 border-emerald-900',
     decorClass: 'bg-emerald-500/10'
@@ -98,7 +98,7 @@ export const CARD_THEMES: CardTheme[] = [
   {
     id: 'void',
     name: 'Void',
-    price: 250,
+    price: 100,
     description: 'Darkness incarnate.',
     bgClass: 'bg-gradient-to-br from-black to-fuchsia-950 border-fuchsia-900',
     decorClass: 'bg-fuchsia-500/10'
@@ -106,7 +106,7 @@ export const CARD_THEMES: CardTheme[] = [
   {
     id: 'gold',
     name: 'Gilded',
-    price: 500,
+    price: 250,
     description: 'Pure luxury.',
     bgClass: 'bg-gradient-to-br from-amber-900 to-yellow-950 border-amber-700',
     decorClass: 'bg-amber-400/20'

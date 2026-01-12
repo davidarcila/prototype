@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, ArrowUpCircle, RectangleVertical, Heart, Eye } from 'lucide-react';
+import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, ArrowUpCircle, RectangleVertical, Heart, Eye, Clock } from 'lucide-react';
 import Card from './components/Card';
 import HealthBar from './components/HealthBar';
 import { CardData, CardEffect, Entity, GameState, LogEntry, Screen, UserProgress, CardTheme } from './types';
@@ -20,18 +20,162 @@ const LOADING_PHRASES = [
   "Gathering Mana..."
 ];
 
+const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// --- MENU COMPONENT (Extracted to fix Hook Error) ---
+interface MenuProps {
+  userProgress: UserProgress;
+  setUserProgress: React.Dispatch<React.SetStateAction<UserProgress>>;
+  setScreen: React.Dispatch<React.SetStateAction<Screen>>;
+  startRun: () => void;
+}
+
+const Menu: React.FC<MenuProps> = ({ userProgress, setUserProgress, setScreen, startRun }) => {
+  const today = new Date().toDateString();
+  const currentTheme = CARD_THEMES.find(t => t.id === userProgress.selectedThemeId) || CARD_THEMES[0];
+  
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+      const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+      return () => clearInterval(timer);
+  }, []);
+
+  const lastClaim = userProgress.lastClaimTimestamp || 0;
+  const timeSinceClaim = currentTime - lastClaim;
+  const canClaim = timeSinceClaim >= CLAIM_COOLDOWN_MS;
+  
+  const timeRemaining = CLAIM_COOLDOWN_MS - timeSinceClaim;
+  const hours = Math.floor(timeRemaining / (1000 * 60 * 60));
+  const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
+  const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+  const claimDaily = () => {
+    playSound('coin');
+    setUserProgress(prev => ({
+      ...prev,
+      coins: prev.coins + 10,
+      lastDailyClaim: today,
+      lastClaimTimestamp: Date.now()
+    }));
+  };
+
+  return (
+    <div className="relative min-h-screen w-full overflow-hidden bg-slate-950">
+      {/* Background Animation Layer */}
+      <div className="absolute inset-0 z-0 opacity-20 bg-pattern animate-pan pointer-events-none"></div>
+
+      {/* Content Layer */}
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen w-full max-w-md mx-auto p-6 gap-6 md:gap-8">
+         <div className="text-center space-y-2 mt-4">
+            <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-indigo-400 to-cyan-400 leading-tight font-serif tracking-tighter">
+              Towerflip
+            </h1>
+            <p className="text-slate-500 text-sm font-serif italic">The Daily Tower awaits.</p>
+         </div>
+         
+         {/* Play & Store Section */}
+         <div className="flex flex-col w-full gap-4 max-w-sm">
+            <button onClick={startRun} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white p-6 rounded-sm font-bold text-xl transition-all shadow-lg flex items-center justify-center gap-3 active:scale-95 group">
+              <Sword className="w-5 h-5 group-hover:rotate-45 transition-transform" /> <span className="font-serif tracking-widest">PLAY</span>
+            </button>
+            
+            <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => setScreen('STORE')} className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 p-4 rounded-sm font-bold transition-all flex flex-col items-center justify-center gap-2 active:scale-95">
+                <ShoppingBag className="w-5 h-5 text-amber-600" />
+                <span className="text-xs uppercase tracking-widest">Store</span>
+                </button>
+                
+                <button onClick={() => setScreen('BESTIARY')} className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 p-4 rounded-sm font-bold transition-all flex flex-col items-center justify-center gap-2 active:scale-95">
+                <BookOpen className="w-5 h-5 text-indigo-500" />
+                <span className="text-xs uppercase tracking-widest">Bestiary</span>
+                </button>
+            </div>
+         </div>
+
+         {/* Prominent Daily Reward Section */}
+         <div className={`w-full max-w-sm rounded-lg p-5 border shadow-xl flex flex-col items-center gap-4 transition-all ${canClaim ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-amber-500/50 shadow-amber-900/20' : 'bg-slate-900/50 border-slate-800 opacity-90'}`}>
+            <div className="flex items-center gap-3 w-full justify-center">
+              <div className={`p-2 rounded-full ${canClaim ? 'bg-amber-900/30' : 'bg-slate-800'}`}>
+                 <Flame className={`w-6 h-6 ${canClaim ? 'text-amber-500 animate-pulse' : 'text-slate-600'}`} />
+              </div>
+              <div className="text-center">
+                <h3 className={`font-bold text-base font-serif tracking-wide ${canClaim ? 'text-amber-200' : 'text-slate-400'}`}>Daily Reward</h3>
+                {!canClaim && <p className="text-[10px] text-slate-500 font-mono tracking-widest mt-1">AVAILABLE IN</p>}
+              </div>
+            </div>
+
+            {canClaim ? (
+                <button 
+                  onClick={claimDaily}
+                  className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded shadow-lg flex items-center justify-center gap-2 animate-pop active:scale-95 transition-transform"
+                >
+                  <Coins className="w-5 h-5 fill-amber-200" />
+                  <span>Claim 10 Coins</span>
+                </button>
+            ) : (
+                <div className="w-full py-3 bg-slate-950 border border-slate-800 rounded flex items-center justify-center gap-3 text-slate-400 font-mono text-xl shadow-inner">
+                   <Clock className="w-5 h-5 text-slate-600" />
+                   <span>{timeString}</span>
+                </div>
+            )}
+         </div>
+
+         {/* Stats */}
+         <div className="grid grid-cols-3 gap-3 w-full max-w-sm mt-2">
+            <div className="bg-slate-900/80 border border-slate-800 p-3 rounded flex flex-col items-center justify-center gap-1 shadow-lg backdrop-blur-sm">
+              <Coins className="w-5 h-5 text-amber-500" />
+              <div className="flex flex-col items-center leading-none">
+                 <span className="text-amber-100 font-bold font-mono text-sm">{userProgress.coins}</span>
+                 <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Gold</span>
+              </div>
+            </div>
+            
+            <div className="bg-slate-900/80 border border-slate-800 p-3 rounded flex flex-col items-center justify-center gap-1 shadow-lg backdrop-blur-sm">
+              <Skull className="w-5 h-5 text-red-500" />
+              <div className="flex flex-col items-center leading-none">
+                 <span className="text-red-100 font-bold font-mono text-sm">{userProgress.bestiary.length}</span>
+                 <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Kills</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-900/80 border border-slate-800 p-3 rounded flex flex-col items-center justify-center gap-1 shadow-lg backdrop-blur-sm">
+              <RectangleVertical className="w-5 h-5 text-indigo-400" />
+              <div className="flex flex-col items-center leading-none w-full">
+                 <span className="text-indigo-100 font-bold font-mono text-xs truncate max-w-[80px]">{currentTheme.name}</span>
+                 <span className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Theme</span>
+              </div>
+            </div>
+         </div>
+
+         {/* Version Number */}
+         <div className="absolute bottom-2 text-[10px] text-slate-800 font-mono">
+           v{GAME_VERSION}
+         </div>
+      </div>
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   // --- Persistent User State ---
   const [userProgress, setUserProgress] = useState<UserProgress>(() => {
     const saved = localStorage.getItem('dungeon_user_progress');
     if (saved) {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      // Migration: Ensure lastClaimTimestamp exists
+      return {
+        ...parsed,
+        lastClaimTimestamp: parsed.lastClaimTimestamp || 0
+      };
     }
     return {
       coins: 0,
       unlockedThemes: ['default'],
       selectedThemeId: 'default',
       lastDailyClaim: '',
+      lastClaimTimestamp: 0,
       bestiary: []
     };
   });
@@ -464,12 +608,22 @@ const App: React.FC = () => {
     });
     setFlippedIndices([]);
 
+    // Determine Combo Status
+    if (combo > 0) {
+        let text = "COMBO!";
+        if (combo === 2) text = "SUPER COMBO!";
+        else if (combo === 3) text = "MEGA COMBO!";
+        else if (combo >= 4) text = "ULTRA COMBO!";
+        
+        // Log to console instead of screen overlay
+        addLog(text, 'info');
+        
+        // Play combo sound for impact (both player and enemy)
+        setTimeout(() => playSound('combo'), 100);
+    }
+
     if (who === 'PLAYER') {
       playSound('match');
-      if (combo > 0) {
-        setTimeout(() => playSound('combo'), 100);
-      }
-      
       // Check for Foretell
       if (isFirstTurnRef.current) {
          setTimeout(() => triggerForetell(), 600); // Trigger after match sound/anim
@@ -588,9 +742,9 @@ const App: React.FC = () => {
             guaranteedMistake = true;
             break;
         case 'HARD':
-            mistakeChance = 0.25; // Nerfed Boss: increased from 0.1
-            forgetChance = 0.2;   // Nerfed Boss: increased from 0.1
-            guaranteedMistake = true; // Nerfed Boss: guarantees at least one mistake
+            mistakeChance = 0.45; // Significantly increased to give player a chance
+            forgetChance = 0.3;   // Increased forget chance
+            guaranteedMistake = true; // Guarantees at least one mistake
             break;
     }
     
@@ -717,92 +871,6 @@ const App: React.FC = () => {
     } catch (err) {
       console.error("Failed to copy", err);
     }
-  };
-
-
-  // --- MENU COMPONENT ---
-  const renderMenu = () => {
-    const today = new Date().toDateString();
-    const canClaim = userProgress.lastDailyClaim !== today;
-    const currentTheme = CARD_THEMES.find(t => t.id === userProgress.selectedThemeId) || CARD_THEMES[0];
-
-    const claimDaily = () => {
-      playSound('coin');
-      setUserProgress(prev => ({
-        ...prev,
-        coins: prev.coins + 10,
-        lastDailyClaim: today
-      }));
-    };
-
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen w-full max-w-md mx-auto p-6 gap-6 md:gap-8 relative">
-         <div className="text-center space-y-2 mt-4">
-            <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-indigo-400 to-cyan-400 leading-tight font-serif tracking-tighter">
-              Towerflip
-            </h1>
-            <p className="text-slate-500 text-sm font-serif italic">The Daily Tower awaits.</p>
-         </div>
-
-         <div className="flex flex-col w-full gap-4 max-w-sm">
-            <button onClick={startRun} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white p-6 rounded-sm font-bold text-xl transition-all shadow-lg flex items-center justify-center gap-3 active:scale-95 group">
-              <Sword className="w-5 h-5 group-hover:rotate-45 transition-transform" /> <span className="font-serif tracking-widest">PLAY</span>
-            </button>
-            
-            <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setScreen('STORE')} className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 p-4 rounded-sm font-bold transition-all flex flex-col items-center justify-center gap-2 active:scale-95">
-                <ShoppingBag className="w-5 h-5 text-amber-600" />
-                <span className="text-xs uppercase tracking-widest">Store</span>
-                </button>
-                
-                <button onClick={() => setScreen('BESTIARY')} className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 p-4 rounded-sm font-bold transition-all flex flex-col items-center justify-center gap-2 active:scale-95">
-                <BookOpen className="w-5 h-5 text-indigo-500" />
-                <span className="text-xs uppercase tracking-widest">Bestiary</span>
-                </button>
-            </div>
-         </div>
-
-         {/* Daily Streak */}
-         <div className="w-full max-w-sm bg-slate-900/80 rounded-sm p-4 border border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Flame className={`w-6 h-6 ${canClaim ? 'text-orange-500 animate-pulse' : 'text-slate-700'}`} />
-              <div>
-                <h3 className="font-bold text-slate-300 text-sm font-serif">Daily Reward</h3>
-                <p className="text-[10px] text-slate-600 italic">{canClaim ? 'Reward available!' : 'Come back tomorrow for more.'}</p>
-              </div>
-            </div>
-            <button 
-              disabled={!canClaim}
-              onClick={claimDaily}
-              className={`px-3 py-1 rounded-sm font-bold text-xs flex items-center gap-2 border ${canClaim ? 'bg-orange-900/30 border-orange-700/50 text-orange-200 hover:bg-orange-900/50' : 'bg-slate-800 border-slate-700 text-slate-600 cursor-not-allowed'}`}
-            >
-              <Coins className="w-3 h-3" />
-              {canClaim ? '+10' : 'Taken'}
-            </button>
-         </div>
-
-         {/* Stats */}
-         <div className="flex justify-between w-full max-w-sm text-slate-500 text-xs font-mono px-2 border-t border-slate-800 pt-4">
-            <div className="flex items-center gap-2">
-              <Coins className="w-3 h-3 text-amber-600" />
-              <span>{userProgress.coins}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Skull className="w-3 h-3 text-red-900" />
-              <span>{userProgress.bestiary.length}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <RectangleVertical className="w-3 h-3 text-indigo-400" />
-              <span className="uppercase tracking-widest text-[10px]">{currentTheme.name}</span>
-            </div>
-         </div>
-
-         {/* Version Number */}
-         <div className="absolute bottom-2 text-[10px] text-slate-800 font-mono">
-           v{GAME_VERSION}
-         </div>
-      </div>
-    );
   };
 
   // --- STORE COMPONENT ---
@@ -1047,7 +1115,8 @@ const App: React.FC = () => {
               {logs.length === 0 && <span className="text-slate-700 italic font-serif">Battle started.</span>}
               {logs.map((log) => (
                 <div key={log.id} className={`
-                  ${log.type === 'enemy' ? 'text-red-900/80' : 
+                  ${log.message.includes('COMBO') ? 'text-amber-500 font-bold animate-pulse uppercase tracking-wider' : 
+                    log.type === 'enemy' ? 'text-red-900/80' : 
                     log.type === 'player' ? 'text-slate-400' : 
                     log.type === 'heal' ? 'text-emerald-900' : 'text-slate-600'}
                 `}>
@@ -1177,7 +1246,7 @@ const App: React.FC = () => {
   // --- MAIN RENDER ---
   return (
     <>
-      {screen === 'MENU' && renderMenu()}
+      {screen === 'MENU' && <Menu userProgress={userProgress} setUserProgress={setUserProgress} setScreen={setScreen} startRun={startRun} />}
       {screen === 'STORE' && renderStore()}
       {screen === 'BESTIARY' && renderBestiary()}
       {screen === 'GAME' && renderGame()}

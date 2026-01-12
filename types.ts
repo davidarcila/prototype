@@ -64,6 +64,7 @@ export interface UserProgress {
   coins: number;
   unlockedThemes: string[];
   selectedThemeId: string;
-  lastDailyClaim: string;
+  lastDailyClaim: string; // Kept for legacy compatibility
+  lastClaimTimestamp?: number; // New field for 24h timer
   bestiary: Entity[]; // List of defeated enemies
 }
