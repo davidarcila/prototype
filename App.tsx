@@ -593,6 +593,8 @@ const App: React.FC = () => {
   };
 
   const nextFloor = async () => {
+    if (gameState === GameState.LOADING) return; // Prevent double clicks
+    
     if (currentFloorIndex < 2) {
        // Standard Floor Progression within Tower
        // Check for merchant: Let's spawn Merchant after Floor 2 (index 1), before Boss (index 2)
@@ -1133,9 +1135,6 @@ const App: React.FC = () => {
       }
 
       // Oracle Passive: Peek after 2 consecutive matches
-      // Current combo is X. Match successful -> Combo becomes X+1. 
-      // Requirement: "After 2 consecutive matches". 
-      // If combo is 1 (meaning this is the 2nd match), trigger.
       if (player.characterId === 'ORACLE' && combo >= 1) {
           setTimeout(() => {
              oraclePeek();
@@ -1152,7 +1151,8 @@ const App: React.FC = () => {
     aiMemory.current.delete(idx2);
 
     if (who === 'ENEMY') {
-       setTimeout(() => executeAiTurn(), 1000); 
+       // FIX: Use state transition instead of direct call to avoid stale closures in recursive calls
+       setGameState(GameState.ENEMY_THINKING);
     }
   };
 
@@ -1168,9 +1168,6 @@ const App: React.FC = () => {
              // Flash card
              aiMemory.current.set(pick, card);
              
-             // Create a temporary flip
-             // We can use a timeout to flip it back, but need to do it carefully to not mess up state
-             // Simplified: Just set isFlipped to true, then revert after 1.5s
              setTimeout(() => {
                  setCards(curr => curr.map((c, i) => i === pick && !c.isMatched ? { ...c, isFlipped: false } : c));
              }, 1500);
