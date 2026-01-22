@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, ArrowUpCircle, RectangleVertical, Heart, Eye, Clock, Castle, Star, Droplets, Shuffle, Briefcase, ChevronRight } from 'lucide-react';
+import { Coins, Skull, RefreshCw, Trophy, ShieldAlert, Zap, ShoppingBag, BookOpen, ArrowLeft, Check, Lock, Flame, Sword, Share2, ArrowUpCircle, RectangleVertical, Heart, Eye, Clock, Castle, Star, Droplets, Shuffle, Briefcase, ChevronRight, User } from 'lucide-react';
 import Card from './components/Card';
 import HealthBar from './components/HealthBar';
 import SolitaireCelebration from './components/SolitaireCelebration';
-import { CardData, CardEffect, Entity, GameState, LogEntry, Screen, UserProgress, CardTheme, ItemId, Item } from './types';
-import { generateDeck, EFFECT_CONFIG, DECK_COMPOSITION, CARD_THEMES, GAME_VERSION, ITEMS } from './constants';
+import { CardData, CardEffect, Entity, GameState, LogEntry, Screen, UserProgress, CardTheme, ItemId, Item, CharacterId } from './types';
+import { generateDeck, EFFECT_CONFIG, DECK_COMPOSITION, CARD_THEMES, GAME_VERSION, ITEMS, CHARACTERS } from './constants';
 import { generateDailyEnemy } from './services/gemini';
 import { initAudio, playSound } from './services/audio';
 
@@ -64,10 +64,10 @@ interface MenuProps {
   userProgress: UserProgress;
   setUserProgress: React.Dispatch<React.SetStateAction<UserProgress>>;
   setScreen: React.Dispatch<React.SetStateAction<Screen>>;
-  startRun: () => void;
+  onEnterTower: () => void;
 }
 
-const Menu: React.FC<MenuProps> = ({ userProgress, setUserProgress, setScreen, startRun }) => {
+const Menu: React.FC<MenuProps> = ({ userProgress, setUserProgress, setScreen, onEnterTower }) => {
   const currentTheme = CARD_THEMES.find(t => t.id === userProgress.selectedThemeId) || CARD_THEMES[0];
   
   return (
@@ -86,7 +86,7 @@ const Menu: React.FC<MenuProps> = ({ userProgress, setUserProgress, setScreen, s
              
              {/* Play & Store Section */}
              <div className="flex flex-col w-full gap-4 max-w-sm">
-                <button onClick={startRun} className="w-full bg-indigo-950/80 hover:bg-indigo-900/90 border border-indigo-700/50 text-indigo-100 p-6 rounded-sm font-bold text-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.2)] flex items-center justify-center gap-3 active:scale-95 group backdrop-blur-sm">
+                <button onClick={onEnterTower} className="w-full bg-indigo-950/80 hover:bg-indigo-900/90 border border-indigo-700/50 text-indigo-100 p-6 rounded-sm font-bold text-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.2)] flex items-center justify-center gap-3 active:scale-95 group backdrop-blur-sm">
                   <Sword className="w-5 h-5 group-hover:rotate-45 transition-transform" /> <span className="font-serif tracking-widest">ENTER TOWER</span>
                 </button>
                 
@@ -141,6 +141,53 @@ const Menu: React.FC<MenuProps> = ({ userProgress, setUserProgress, setScreen, s
     </div>
   );
 };
+
+// --- CHARACTER SELECTION SCREEN ---
+interface CharacterSelectionProps {
+  onSelect: (characterId: CharacterId) => void;
+  onBack: () => void;
+}
+
+const CharacterSelection: React.FC<CharacterSelectionProps> = ({ onSelect, onBack }) => {
+  return (
+    <div className="min-h-screen w-full p-6 flex flex-col items-center relative overflow-hidden">
+        <StarBackground />
+        
+        <header className="w-full max-w-4xl flex items-center justify-between mb-8 relative z-10">
+          <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" /> Back
+          </button>
+        </header>
+
+        <div className="relative z-10 text-center mb-8">
+            <h1 className="text-4xl font-bold font-serif mb-2 text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-fuchsia-100">Choose Your Hero</h1>
+            <p className="text-slate-400 font-serif italic">Each path demands a different strength.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl relative z-10 pb-10">
+            {CHARACTERS.map(char => (
+                <button 
+                  key={char.id}
+                  onClick={() => onSelect(char.id)}
+                  className="bg-slate-900/80 border border-slate-800 hover:border-indigo-500 hover:bg-indigo-950/30 p-6 rounded-lg flex flex-row items-start gap-5 transition-all group text-left backdrop-blur-sm shadow-lg hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] active:scale-95"
+                >
+                    <div className="w-16 h-16 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center text-4xl shadow-inner group-hover:scale-110 transition-transform">
+                        {char.visual}
+                    </div>
+                    <div className="flex-1">
+                        <h3 className={`font-bold text-xl mb-1 ${char.color} font-serif tracking-wide`}>{char.name}</h3>
+                        <p className="text-slate-300 text-sm mb-3 italic">"{char.description}"</p>
+                        <div className="text-xs bg-black/40 p-2 rounded border border-slate-800/50">
+                            <span className="font-bold text-slate-400 uppercase tracking-wider">Passive:</span> <span className="text-slate-200">{char.passive}</span>
+                        </div>
+                    </div>
+                </button>
+            ))}
+        </div>
+    </div>
+  );
+};
+
 
 // --- MERCHANT COMPONENT ---
 interface MerchantProps {
@@ -329,6 +376,7 @@ const App: React.FC = () => {
   const [combo, setCombo] = useState<number>(0);
   const [comboOwner, setComboOwner] = useState<'PLAYER' | 'ENEMY' | null>(null);
   const [isShuffling, setIsShuffling] = useState(false);
+  const [swappingIndices, setSwappingIndices] = useState<number[]>([]); // New State for Visual Swap
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [loadingPhrase, setLoadingPhrase] = useState<string>("Loading...");
   
@@ -418,8 +466,48 @@ const App: React.FC = () => {
     setTimeout(() => setAnnouncement(null), duration);
   };
 
+  // --- Foretell Logic ---
+  const triggerForetell = useCallback(() => {
+    playSound('ascend');
+    showAnnouncement("FORETELL!", 1000);
+    addLog("The cards reveal themselves...", 'info');
+    
+    setCards(currentCards => {
+        const candidates = currentCards
+        .map((c, i) => ({ ...c, originalIndex: i }))
+        .filter(c => !c.isMatched && !c.isFlipped);
+        
+        if (candidates.length === 0) return currentCards;
+
+        const shuffled = candidates.sort(() => 0.5 - Math.random());
+        const revealed = shuffled.slice(0, 2);
+        const indicesToReveal = revealed.map(c => c.originalIndex);
+
+        if (indicesToReveal.length === 0) return currentCards;
+
+        revealed.forEach(c => {
+            aiMemory.current.set(c.originalIndex, c);
+        });
+
+        const flippedCards = currentCards.map((c, i) => 
+            indicesToReveal.includes(i) ? { ...c, isFlipped: true } : c
+        );
+        
+        setTimeout(() => {
+            setCards(prev => prev.map((c, i) => 
+                indicesToReveal.includes(i) ? { ...c, isFlipped: false } : c
+            ));
+            setIsShuffling(false); 
+        }, 2500);
+
+        return flippedCards;
+    });
+
+    setIsShuffling(true); 
+  }, []);
+
   // --- Game Initialization ---
-  const startRun = useCallback(async () => {
+  const startRun = useCallback(async (characterId: CharacterId) => {
     initAudio();
     setLoadingPhrase(LOADING_PHRASES[Math.floor(Math.random() * LOADING_PHRASES.length)]);
 
@@ -431,13 +519,30 @@ const App: React.FC = () => {
     // Reset Run State
     setCurrentFloorIndex(0);
     setCurrentTowerLevel(1);
-    setPlayer({ name: 'Hero', maxHp: 12, currentHp: 12, shield: 0, coins: 0, visual: '🧙', difficulty: 'EASY' });
+
+    const charData = CHARACTERS.find(c => c.id === characterId)!;
+
+    setPlayer({ 
+        name: charData.name, 
+        maxHp: 12, 
+        currentHp: 12, 
+        shield: 0, 
+        coins: 0, 
+        visual: charData.visual, 
+        difficulty: 'EASY',
+        characterId: characterId 
+    });
+
     setMatchHistory([]);
     setLogs([]);
     setIsShuffling(false);
+    setSwappingIndices([]);
     setBurnStacks(0);
     setActiveEffects({});
     
+    // Clear inventory for new run
+    setUserProgress(prev => ({ ...prev, inventory: [] }));
+
     // Generate Level 1 Enemies
     const seed = `${getTodayString()}-tower-1`;
     const towerEnemies = await generateDailyEnemy(seed, 1.0);
@@ -457,6 +562,7 @@ const App: React.FC = () => {
     setPlayerAnim('');
     setEnemyAnim('');
     setIsShuffling(false);
+    setSwappingIndices([]);
     isFirstTurnRef.current = true; // Reset first turn trigger
     setBurnStacks(0); 
     setActiveEffects(prev => ({ ...prev, enemySkipped: false })); // Reset round specific effects
@@ -573,12 +679,6 @@ const App: React.FC = () => {
               break;
           
           case 'HOURGLASS':
-              // Extra turn implies we just don't end turn on miss? Or reset current flow?
-              // Simple way: No immediate effect, but notify player.
-              // Logic: Actually, we just add a log. The player is ALREADY in their turn. 
-              // This is useful if they miss. So we treat it like Mercy? 
-              // Prompt said: "Take an extra turn". In a turn-based card game, this usually means "If you miss, you go again". 
-              // Let's alias it to Mercy logic for simplicity but maybe visual distinctness.
               setActiveEffects(prev => ({ ...prev, mercy: true })); 
               addLog("Time bends... (Next miss won't end turn)", 'info');
               break;
@@ -588,8 +688,6 @@ const App: React.FC = () => {
               const pair = findHiddenPair();
               if (pair) {
                   const [i1, i2] = pair;
-                  // Flip them up permanently? Or just flash?
-                  // Let's flip them up briefly then down
                   setCards(prev => prev.map((c, i) => (i === i1 || i === i2) ? { ...c, isFlipped: true } : c));
                   aiMemory.current.set(i1, cards[i1]);
                   aiMemory.current.set(i2, cards[i2]);
@@ -640,9 +738,6 @@ const App: React.FC = () => {
               setCards(prev => prev.map(c => (!c.isMatched ? { ...c, isFlipped: true } : c)));
               setTimeout(() => {
                   setCards(prev => prev.map(c => (!c.isMatched ? { ...c, isFlipped: false } : c)));
-                  // Shuffle one pair logic... simplified: just shuffle whole board that isn't matched
-                  // Implementing true "shuffle one pair" is complex with state. 
-                  // Let's stick to Reveal All for 2s.
               }, 2000);
               break;
 
@@ -741,9 +836,9 @@ const App: React.FC = () => {
   }, [cards, enemy.currentHp, player.currentHp, reshuffleDeck, gameState]);
 
   // --- Combat Logic ---
-  const applyEffect = (effect: CardEffect, source: 'PLAYER' | 'ENEMY', currentCombo: number) => {
+  const applyEffect = (effect: CardEffect, source: 'PLAYER' | 'ENEMY', currentCombo: number, customValue?: number) => {
     const config = EFFECT_CONFIG[effect];
-    let value = config.value;
+    let value = customValue !== undefined ? customValue : config.value;
     
     // Apply Combo Multiplier
     if (currentCombo > 0) {
@@ -758,6 +853,12 @@ const App: React.FC = () => {
     }
 
     const isPlayerSource = source === 'PLAYER';
+
+    // Appraiser Passive: +1 coin per streak match
+    if (isPlayerSource && player.characterId === 'APPRAISER' && currentCombo > 0) {
+        setPlayer(prev => ({ ...prev, coins: (prev.coins || 0) + 1 }));
+        // Silent add or minimal log?
+    }
     
     if (isPlayerSource) {
       let emoji = '⬜';
@@ -816,7 +917,21 @@ const App: React.FC = () => {
     } 
     else if (effect.includes('HEAL')) {
       if (isPlayerSource) {
-        setPlayer(prev => ({ ...prev, currentHp: Math.min(prev.maxHp, prev.currentHp + value) }));
+        setPlayer(prev => {
+            let nextHp = Math.min(prev.maxHp, prev.currentHp + value);
+            // Acolyte Passive: Overheal -> Armor
+            let armorGain = 0;
+            if (prev.characterId === 'ACOLYTE') {
+                const missing = prev.maxHp - prev.currentHp;
+                if (value > missing) {
+                    armorGain = value - missing;
+                }
+            }
+            if (armorGain > 0) {
+                 addLog(`Acolyte converts excess healing to ${armorGain} armor!`, 'heal');
+            }
+            return { ...prev, currentHp: nextHp, shield: prev.shield + armorGain };
+        });
         addLog(`Player heals for ${value} HP.${comboText}`, 'heal');
       } else {
         setEnemies(prev => {
@@ -842,8 +957,14 @@ const App: React.FC = () => {
     }
     else if (effect.includes('COIN')) {
       if (isPlayerSource) {
-        setPlayer(prev => ({ ...prev, coins: (prev.coins || 0) + value }));
-        addLog(`Player found ${value} coins!${comboText}`, 'info');
+        let finalValue = value;
+        // Appraiser Passive: Gold Match Bonus
+        if (player.characterId === 'APPRAISER') {
+             finalValue += 2;
+             addLog("Appraiser Bonus: +2 Coins!", 'item');
+        }
+        setPlayer(prev => ({ ...prev, coins: (prev.coins || 0) + finalValue }));
+        addLog(`Player found ${finalValue} coins!${comboText}`, 'info');
       } else {
         addLog(`${enemy.name} finds some gold.${comboText}`, 'info');
       }
@@ -874,19 +995,52 @@ const App: React.FC = () => {
             const card1 = newCards[newFlipped[0]];
             const card2 = newCards[newFlipped[1]];
 
-            // Check for Wildcards
-            const isMatch = card1.effect === card2.effect || card1.isWildcard || card2.isWildcard;
+            // Check for Wildcards and Standard Matches
+            let isMatch = card1.effect === card2.effect || card1.isWildcard || card2.isWildcard;
+            
+            // Character Specific Overrides
+            let wardenOverride = false;
+            let acolyteOverride = false;
+
+            if (player.characterId === 'WARDEN' && !isMatch) {
+                if (card1.effect.includes('ATTACK') && card2.effect.includes('ATTACK')) {
+                    isMatch = true;
+                    wardenOverride = true;
+                }
+            }
+
+            if (player.characterId === 'ACOLYTE' && !isMatch) {
+                if (card1.effect.includes('HEAL') && card2.effect.includes('HEAL')) {
+                    isMatch = true;
+                    acolyteOverride = true;
+                }
+            }
 
             if (isMatch) {
                 // Determine effect to apply (Non-wildcard effect takes precedence)
                 let effectToApply = card1.effect;
                 if (card1.isWildcard && !card2.isWildcard) effectToApply = card2.effect;
-                // If both wildcard, default to something? Or just Attack Small? 
-                // Let's say if both wildcard, they trigger Attack Medium.
                 if (card1.isWildcard && card2.isWildcard) effectToApply = CardEffect.ATTACK_MEDIUM;
+                
+                // Warden/Acolyte Specific Calculation
+                let customValue = undefined;
+
+                if (wardenOverride) {
+                    const v1 = EFFECT_CONFIG[card1.effect].value;
+                    const v2 = EFFECT_CONFIG[card2.effect].value;
+                    customValue = Math.floor((v1 + v2) / 2);
+                    effectToApply = CardEffect.ATTACK_MEDIUM; // Visual fallback, value overridden
+                }
+
+                if (acolyteOverride) {
+                    const v1 = EFFECT_CONFIG[card1.effect].value;
+                    const v2 = EFFECT_CONFIG[card2.effect].value;
+                    customValue = Math.floor((v1 + v2) / 2);
+                    effectToApply = CardEffect.HEAL_MEDIUM; // Visual fallback, value overridden
+                }
 
                 setTimeout(() => {
-                    handleMatch(newFlipped[0], newFlipped[1], effectToApply, 'PLAYER');
+                    handleMatch(newFlipped[0], newFlipped[1], effectToApply, 'PLAYER', customValue);
                 }, 500);
             } else {
                 // NO MATCH
@@ -944,7 +1098,7 @@ const App: React.FC = () => {
      }
   };
 
-  const handleMatch = (idx1: number, idx2: number, effect: CardEffect, who: 'PLAYER' | 'ENEMY') => {
+  const handleMatch = (idx1: number, idx2: number, effect: CardEffect, who: 'PLAYER' | 'ENEMY', customValue?: number) => {
     if (isGameOverRef.current) return;
 
     setCards(prev => {
@@ -974,14 +1128,24 @@ const App: React.FC = () => {
     if (who === 'PLAYER') {
       playSound('match');
       if (isFirstTurnRef.current) {
-         // triggerForetell(); // Optional: Re-enable if desired for Foretell
+         triggerForetell(); // Enable Foretell mechanic
          isFirstTurnRef.current = false;
+      }
+
+      // Oracle Passive: Peek after 2 consecutive matches
+      // Current combo is X. Match successful -> Combo becomes X+1. 
+      // Requirement: "After 2 consecutive matches". 
+      // If combo is 1 (meaning this is the 2nd match), trigger.
+      if (player.characterId === 'ORACLE' && combo >= 1) {
+          setTimeout(() => {
+             oraclePeek();
+          }, 1000);
       }
     } else {
       playSound('enemy_match');
     }
 
-    applyEffect(effect, who, combo);
+    applyEffect(effect, who, combo, customValue);
     setCombo(prev => prev + 1);
     
     aiMemory.current.delete(idx1);
@@ -990,6 +1154,31 @@ const App: React.FC = () => {
     if (who === 'ENEMY') {
        setTimeout(() => executeAiTurn(), 1000); 
     }
+  };
+
+  const oraclePeek = () => {
+     // Find a hidden card not matched
+     setCards(prev => {
+         const hiddenIndices = prev.map((c, i) => (!c.isMatched && !c.isFlipped ? i : -1)).filter(i => i !== -1);
+         if (hiddenIndices.length > 0) {
+             const pick = hiddenIndices[Math.floor(Math.random() * hiddenIndices.length)];
+             const card = prev[pick];
+             addLog("Oracle foresees a card...", 'info');
+             
+             // Flash card
+             aiMemory.current.set(pick, card);
+             
+             // Create a temporary flip
+             // We can use a timeout to flip it back, but need to do it carefully to not mess up state
+             // Simplified: Just set isFlipped to true, then revert after 1.5s
+             setTimeout(() => {
+                 setCards(curr => curr.map((c, i) => i === pick && !c.isMatched ? { ...c, isFlipped: false } : c));
+             }, 1500);
+
+             return prev.map((c, i) => i === pick ? { ...c, isFlipped: true } : c);
+         }
+         return prev;
+     });
   };
 
   const unflipCards = (indices: number[]) => {
@@ -1054,6 +1243,13 @@ const App: React.FC = () => {
   // --- AI Logic ---
   const flipCardAI = (index: number): Promise<CardData> => {
     return new Promise((resolve) => {
+      // Safety check for invalid index
+      if (index === undefined || index < 0 || index >= cards.length) {
+          // If something went wrong, just resolve with current state first card to avoid crash, logic will recover
+          resolve(cards[0]); 
+          return;
+      }
+      
       setCards(prev => {
         const newCards = [...prev];
         if (newCards[index]) {
@@ -1071,7 +1267,22 @@ const App: React.FC = () => {
 
     setGameState(GameState.ENEMY_ACTING);
     const memory = aiMemory.current;
+    const cardsInPlay = cards.filter(c => !c.isMatched).length;
     
+    // SAFETY CHECK: Ensure there are enough cards for the AI to make a move.
+    // We filter out matched AND slimed cards.
+    const availableIndices = cards.map((c, i) => (c.isMatched || c.isSlimed ? -1 : i)).filter(i => i !== -1);
+    
+    if (availableIndices.length < 2) {
+       addLog(`${enemy.name} cannot find 2 cards to flip!`, 'enemy');
+       // Pass turn back to player if AI cannot move.
+       // This prevents the "card2 is undefined" crash.
+       setTimeout(() => {
+           setGameState(GameState.PLAYER_TURN);
+       }, 1000);
+       return;
+    }
+
     let mistakeChance = 0.0;
     let forgetChance = 0.0;
     let guaranteedMistake = false;
@@ -1084,6 +1295,15 @@ const App: React.FC = () => {
         case 'HARD':
             mistakeChance = 0.6; forgetChance = 0.4; guaranteedMistake = true; break;
     }
+
+    // AI Becomes Ruthless in Endgame
+    let forceStreakEnd = enemyMatchesInTurn.current >= 2;
+    if (cardsInPlay <= 4) {
+        mistakeChance = 0;
+        forgetChance = 0;
+        guaranteedMistake = false;
+        forceStreakEnd = false; // Don't give up streak if only few cards left
+    }
     
     let matchFound: [number, number] | null = null;
     const seenEffects = new Map<CardEffect, number>();
@@ -1093,6 +1313,8 @@ const App: React.FC = () => {
       if (cards[idx] && cards[idx].isMatched) continue;
       // Skip wildcard logic for AI simplicity for now, they treat wildcards as unknown unless lucky
       if (card.isWildcard) continue;
+      // AI Ignores Slimed cards (Smart behavior)
+      if (card.isSlimed) continue;
 
       if (seenEffects.has(card.effect)) {
         matchFound = [seenEffects.get(card.effect)!, idx];
@@ -1101,13 +1323,11 @@ const App: React.FC = () => {
       seenEffects.set(card.effect, idx);
     }
 
-    const forceStreakEnd = enemyMatchesInTurn.current >= 2;
     if (forceStreakEnd && matchFound) {
        addLog(`${enemy.name} gets greedy...`, 'info'); 
        matchFound = null; 
     }
 
-    const cardsInPlay = cards.filter(c => !c.isMatched).length;
     if (enemy.difficulty === 'HARD' && cardsInPlay > 4 && bossMistakesRef.current > 0 && matchFound && !forceStreakEnd) {
         matchFound = null;
         bossMistakesRef.current--;
@@ -1124,9 +1344,6 @@ const App: React.FC = () => {
           matchFound = null; 
        }
     }
-
-    const availableIndices = cards.map((c, i) => (c.isMatched ? -1 : i)).filter(i => i !== -1);
-    if (availableIndices.length === 0) return;
 
     let firstIdx: number;
     let secondIdx: number;
@@ -1148,7 +1365,7 @@ const App: React.FC = () => {
           let pairInMem = -1;
           if (!card1.isWildcard) {
               for (const [idx, mCard] of memory.entries()) {
-                 if (idx !== firstIdx && !mCard.isMatched && mCard.effect === card1.effect) {
+                 if (idx !== firstIdx && !mCard.isMatched && !mCard.isSlimed && mCard.effect === card1.effect) {
                     pairInMem = idx;
                     break;
                  }
@@ -1163,6 +1380,7 @@ const App: React.FC = () => {
              }
              if (forceStreakEnd || forceError || Math.random() < mistakeChance) {
                  const validSeconds = availableIndices.filter(i => i !== firstIdx && i !== pairInMem);
+                 // Fallback to pairInMem if validSeconds empty (only 2 cards available)
                  secondIdx = validSeconds.length > 0 ? validSeconds[Math.floor(Math.random() * validSeconds.length)] : pairInMem;
              } else {
                  secondIdx = pairInMem;
@@ -1170,6 +1388,7 @@ const App: React.FC = () => {
              }
           } else {
              const validSeconds = availableIndices.filter(i => i !== firstIdx);
+             // Safe now because availableIndices >= 2
              secondIdx = validSeconds[Math.floor(Math.random() * validSeconds.length)];
           }
        }
@@ -1196,7 +1415,15 @@ const App: React.FC = () => {
                  // Boss Specials
                  if (enemy.bossType === 'SLIME') {
                      setCards(curr => {
-                        const nextCards = curr.map(c => ({ ...c, isSlimed: false }));
+                        const nextCards = curr.map(c => ({ ...c, isSlimed: false })); // Clear old slime first? Or stack? Typically re-apply.
+                        
+                        // FIX: Softlock prevention and less punishing
+                        // If 4 or fewer cards remain, remove slime completely and don't apply new
+                        const remainingCount = nextCards.filter(c => !c.isMatched).length;
+                        if (remainingCount <= 4) {
+                            return nextCards.map(c => ({...c, isSlimed: false}));
+                        }
+
                         const available = nextCards.map((c, i) => !c.isMatched ? i : -1).filter(i => i !== -1);
                         const shuffled = available.sort(() => 0.5 - Math.random());
                         const toSlime = shuffled.slice(0, 2);
@@ -1207,8 +1434,8 @@ const App: React.FC = () => {
                         }
                         return nextCards;
                      });
-                 }
-                 if (enemy.bossType === 'CONFUSION') {
+                     setGameState(GameState.PLAYER_TURN);
+                 } else if (enemy.bossType === 'CONFUSION') {
                      setCards(curr => {
                         const available = curr.map((c, i) => !c.isMatched && !c.isFlipped ? i : -1).filter(i => i !== -1);
                         if (available.length >= 2) {
@@ -1216,19 +1443,34 @@ const App: React.FC = () => {
                              let idx2 = available[Math.floor(Math.random() * available.length)];
                              while (idx2 === idx1 && available.length > 1) idx2 = available[Math.floor(Math.random() * available.length)];
                              if (idx1 !== idx2) {
-                                 const nextCards = [...curr];
-                                 const temp = { ...nextCards[idx1] };
-                                 nextCards[idx1] = { ...nextCards[idx2], id: nextCards[idx1].id }; 
-                                 nextCards[idx2] = { ...temp, id: nextCards[idx2].id }; 
-                                 addLog("Confusion! Two cards swapped.", 'enemy');
+                                 // Trigger visual swap animation first
+                                 setSwappingIndices([idx1, idx2]);
+                                 addLog("Confusion! Two cards swapped positions.", 'enemy');
                                  playSound('flip');
-                                 return nextCards;
+
+                                 // Delay actual data swap to sync with animation
+                                 setTimeout(() => {
+                                     setCards(prevCards => {
+                                         const nextCards = [...prevCards];
+                                         const temp = { ...nextCards[idx1] };
+                                         nextCards[idx1] = { ...nextCards[idx2], id: nextCards[idx1].id }; 
+                                         nextCards[idx2] = { ...temp, id: nextCards[idx2].id }; 
+                                         return nextCards;
+                                     });
+                                     setSwappingIndices([]); // Clear animation state to trigger re-entry
+                                     setGameState(GameState.PLAYER_TURN);
+                                 }, 600); // Wait for exit animation
+                                 
+                                 return curr; // Return current state, waiting for timeout to update
                              }
                         }
+                        // If can't swap, just proceed
+                        setGameState(GameState.PLAYER_TURN);
                         return curr;
                      });
+                 } else {
+                     setGameState(GameState.PLAYER_TURN);
                  }
-                 setGameState(GameState.PLAYER_TURN);
                }, 1000);
             }
          });
@@ -1237,6 +1479,7 @@ const App: React.FC = () => {
   };
 
   const shareResult = async () => {
+    // ... rest of code unchanged ...
     const status = gameState === GameState.VICTORY ? `🏆 Tower ${currentTowerLevel} Conquered` : `💀 Died Tower ${currentTowerLevel} Floor ${currentFloorIndex + 1}`;
     const moves = matchHistory.join('');
     const text = `Towerflip 🏰\n${new Date().toDateString()}\n${status}\n${moves}\n\nPlay now!`;
@@ -1250,6 +1493,7 @@ const App: React.FC = () => {
   // --- RENDERERS ---
 
   const renderStore = () => {
+    // ... existing renderStore
     const handleBuyTheme = (theme: CardTheme) => {
       if (userProgress.coins >= theme.price) {
         playSound('coin');
@@ -1407,6 +1651,7 @@ const App: React.FC = () => {
   };
 
   const renderGame = () => {
+    // ... same as before
     const activeTheme = CARD_THEMES.find(t => t.id === userProgress.selectedThemeId) || CARD_THEMES[0];
     const isPlayerTurn = gameState === GameState.PLAYER_TURN;
     const isEnemyTurn = gameState === GameState.ENEMY_THINKING || gameState === GameState.ENEMY_ACTING;
@@ -1561,7 +1806,7 @@ const App: React.FC = () => {
         <div className="flex-1 flex flex-col items-center justify-center p-4 relative bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black overflow-hidden z-10">
           <div className="grid grid-cols-4 gap-3 w-full max-w-[min(90vw,50vh)] aspect-square mx-auto">
             {cards.map((card, idx) => (
-              <Card key={card.id} card={card} index={idx} isExitAnimating={isShuffling} onClick={handleCardClick} disabled={gameState !== GameState.PLAYER_TURN} theme={activeTheme} combo={combo} />
+              <Card key={card.id} card={card} index={idx} isExitAnimating={isShuffling} isSwapping={swappingIndices.includes(idx)} onClick={handleCardClick} disabled={gameState !== GameState.PLAYER_TURN} theme={activeTheme} combo={combo} />
             ))}
           </div>
 
@@ -1608,7 +1853,8 @@ const App: React.FC = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-slate-900 overflow-hidden">
-      {screen === 'MENU' && <Menu userProgress={userProgress} setUserProgress={setUserProgress} setScreen={setScreen} startRun={startRun} />}
+      {screen === 'MENU' && <Menu userProgress={userProgress} setUserProgress={setUserProgress} setScreen={setScreen} onEnterTower={() => setScreen('CHARACTER_SELECT')} />}
+      {screen === 'CHARACTER_SELECT' && <CharacterSelection onSelect={startRun} onBack={() => setScreen('MENU')} />}
       {screen === 'STORE' && renderStore()}
       {screen === 'BESTIARY' && renderBestiary()}
       {screen === 'GAME' && renderGame()}

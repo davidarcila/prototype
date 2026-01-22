@@ -21,6 +21,7 @@ export interface CardData {
 
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
 export type BossType = 'NONE' | 'BURN' | 'SLIME' | 'CONFUSION';
+export type CharacterId = 'WARDEN' | 'ACOLYTE' | 'ORACLE' | 'APPRAISER';
 
 export interface Entity {
   name: string;
@@ -33,6 +34,7 @@ export interface Entity {
   dateEncountered?: string;
   difficulty: Difficulty;
   bossType?: BossType;
+  characterId?: CharacterId; // Added to track selected class
 }
 
 export enum GameState {
@@ -43,7 +45,7 @@ export enum GameState {
   LEVEL_COMPLETE = 'LEVEL_COMPLETE',
   VICTORY = 'VICTORY',
   DEFEAT = 'DEFEAT',
-  MERCHANT = 'MERCHANT', // New State
+  MERCHANT = 'MERCHANT',
 }
 
 export interface LogEntry {
@@ -52,7 +54,7 @@ export interface LogEntry {
   type: 'info' | 'player' | 'enemy' | 'heal' | 'burn' | 'item';
 }
 
-export type Screen = 'MENU' | 'GAME' | 'STORE' | 'BESTIARY';
+export type Screen = 'MENU' | 'GAME' | 'STORE' | 'BESTIARY' | 'CHARACTER_SELECT';
 
 export interface CardTheme {
   id: string;
@@ -80,6 +82,15 @@ export interface UserProgress {
   lastDailyClaim: string;
   lastClaimTimestamp?: number;
   bestiary: Entity[];
-  inventory: ItemId[]; // New: Persist items
-  towerLevel: number; // New: Track highest tower reached
+  inventory: ItemId[];
+  towerLevel: number;
+}
+
+export interface Character {
+  id: CharacterId;
+  name: string;
+  description: string;
+  passive: string;
+  visual: string;
+  color: string;
 }

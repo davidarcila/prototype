@@ -1,7 +1,7 @@
 
-import { CardEffect, CardData, CardTheme, Item } from './types';
+import { CardEffect, CardData, CardTheme, Item, Character } from './types';
 
-export const GAME_VERSION = '2.0.0';
+export const GAME_VERSION = '2.1.0';
 
 // Simple seeded RNG for the daily board layout
 export class SeededRNG {
@@ -23,12 +23,48 @@ export class SeededRNG {
   }
 }
 
+export const CHARACTERS: Character[] = [
+  {
+    id: 'WARDEN',
+    name: 'The Warden',
+    description: 'A master of combat who adapts to any weapon.',
+    passive: 'Match any 2 ATTACK cards. Damage is averaged.',
+    visual: '🛡️',
+    color: 'text-red-400'
+  },
+  {
+    id: 'ACOLYTE',
+    name: 'The Acolyte',
+    description: 'A devoted healer who turns vitality into protection.',
+    passive: 'Match any 2 HEAL cards (averaged). Overheal becomes Armor.',
+    visual: '✨',
+    color: 'text-emerald-400'
+  },
+  {
+    id: 'ORACLE',
+    name: 'The Oracle',
+    description: 'Sees the threads of fate weaving together.',
+    passive: 'After 2 consecutive matches, peek at 1 random hidden card.',
+    visual: '🔮',
+    color: 'text-fuchsia-400'
+  },
+  {
+    id: 'APPRAISER',
+    name: 'The Appraiser',
+    description: 'Knows the true value of a streak.',
+    passive: '+1 Coin on streak matches. +2 Bonus Coins on Gold matches.',
+    visual: '🧐',
+    color: 'text-amber-400'
+  }
+];
+
 export const EFFECT_CONFIG = {
   // Rebalanced for 10 Max HP
   [CardEffect.ATTACK_SMALL]: { value: 2, label: 'Attack', icon: 'sword-sm', color: 'text-red-400' },
   [CardEffect.ATTACK_MEDIUM]: { value: 4, label: 'Slash', icon: 'sword-md', color: 'text-red-500' },
   [CardEffect.ATTACK_BIG]: { value: 6, label: 'Heavy Hit', icon: 'sword-lg', color: 'text-red-600' },
-  [CardEffect.HEAL_SMALL]: { value: 2, label: 'Heal', icon: 'potion-sm', color: 'text-emerald-400' },
+  // Differentiated Heal colors: Small = Lime (Light), Medium = Emerald (Deep)
+  [CardEffect.HEAL_SMALL]: { value: 2, label: 'Heal', icon: 'potion-sm', color: 'text-lime-400' },
   [CardEffect.HEAL_MEDIUM]: { value: 4, label: 'Big Heal', icon: 'potion-md', color: 'text-emerald-500' },
   [CardEffect.SHIELD]: { value: 2, label: 'Shield', icon: 'shield', color: 'text-indigo-300' },
   // Coins adjusted: Small = 5, Medium = 10
