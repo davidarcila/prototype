@@ -348,7 +348,9 @@ const App: React.FC = () => {
         ...parsed,
         lastClaimTimestamp: parsed.lastClaimTimestamp || 0,
         inventory: parsed.inventory || [], // Ensure inventory exists
-        towerLevel: parsed.towerLevel || 1
+        towerLevel: parsed.towerLevel || 1,
+        // Existing players who have progressed (tower > 1 or have bestiary) count as having played
+        hasPlayed: parsed.hasPlayed ?? (parsed.bestiary?.length > 0 || parsed.towerLevel > 1) 
       };
     }
     return {
@@ -359,7 +361,8 @@ const App: React.FC = () => {
       lastClaimTimestamp: 0,
       bestiary: [],
       inventory: [],
-      towerLevel: 1
+      towerLevel: 1,
+      hasPlayed: false
     };
   });
 
@@ -837,6 +840,18 @@ const App: React.FC = () => {
     }
   }, [cards, enemy.currentHp, player.currentHp, reshuffleDeck, gameState]);
 
+  // Check for Softlock (Player has no moves due to Slime)
+  useEffect(() => {
+     if (gameState === GameState.PLAYER_TURN) {
+         const unmatched = cards.filter(c => !c.isMatched);
+         // If there are cards left, and ALL of them are slimed, the player cannot move.
+         if (unmatched.length > 0 && unmatched.every(c => c.isSlimed)) {
+             addLog("Slime dissolves as no moves remain!", 'info');
+             setCards(prev => prev.map(c => ({ ...c, isSlimed: false })));
+         }
+     }
+  }, [cards, gameState]);
+
   // --- Combat Logic ---
   const applyEffect = (effect: CardEffect, source: 'PLAYER' | 'ENEMY', currentCombo: number, customValue?: number) => {
     const config = EFFECT_CONFIG[effect];
@@ -1198,6 +1213,8 @@ const App: React.FC = () => {
       setGameState(GameState.DEFEAT);
       playSound('defeat');
       isGameOverRef.current = true;
+      // FIRST TIME PLAY CHECK: If player dies, they have "played"
+      setUserProgress(prev => ({ ...prev, hasPlayed: true }));
       return;
     }
     
@@ -1215,7 +1232,8 @@ const App: React.FC = () => {
            // Update Max Tower Record
            const newMaxTower = Math.max(prev.towerLevel || 1, currentTowerLevel);
 
-           return { ...prev, coins: newCoins, bestiary: newBestiary, towerLevel: newMaxTower };
+           // FIRST TIME PLAY CHECK: If player wins, they have "played"
+           return { ...prev, coins: newCoins, bestiary: newBestiary, towerLevel: newMaxTower, hasPlayed: true };
       });
 
       if (currentFloorIndex === 2) {
@@ -1272,6 +1290,10 @@ const App: React.FC = () => {
     
     if (availableIndices.length < 2) {
        addLog(`${enemy.name} cannot find 2 cards to flip!`, 'enemy');
+       
+       // FIX: Clear slime to prevent softlock when only slimed cards remain
+       setCards(prev => prev.map(c => ({ ...c, isSlimed: false })));
+
        // Pass turn back to player if AI cannot move.
        // This prevents the "card2 is undefined" crash.
        setTimeout(() => {
@@ -1850,7 +1872,7 @@ const App: React.FC = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-slate-900 overflow-hidden">
-      {screen === 'MENU' && <Menu userProgress={userProgress} setUserProgress={setUserProgress} setScreen={setScreen} onEnterTower={() => setScreen('CHARACTER_SELECT')} />}
+      {screen === 'MENU' && <Menu userProgress={userProgress} setUserProgress={setUserProgress} setScreen={setScreen} onEnterTower={() => userProgress.hasPlayed ? setScreen('CHARACTER_SELECT') : startRun('WARDEN')} />}
       {screen === 'CHARACTER_SELECT' && <CharacterSelection onSelect={startRun} onBack={() => setScreen('MENU')} />}
       {screen === 'STORE' && renderStore()}
       {screen === 'BESTIARY' && renderBestiary()}

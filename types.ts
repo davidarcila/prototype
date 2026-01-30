@@ -84,6 +84,7 @@ export interface UserProgress {
   bestiary: Entity[];
   inventory: ItemId[];
   towerLevel: number;
+  hasPlayed?: boolean;
 }
 
 export interface Character {
